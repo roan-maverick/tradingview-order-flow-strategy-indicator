@@ -1,3 +1,5 @@
+<!-- Maintained by roan-maverick. -->
+
 # AI agent prompt for the Order Flow Strategy
 
 Paste the block below into your agent's system prompt (Claude Code, Claude, an n8n AI node or your own bot). It turns the agent into a disciplined order flow trading assistant that runs the full four-step process: a pre-market plan, live packet reading, trade management and a post-session review. It is tuned for long-horizon reasoning models such as Claude Fable 5.2.

@@ -1,3 +1,5 @@
+<!-- Maintained by roan-maverick. -->
+
 # Order Flow Strategy: Specification
 
 Version 1.1 · Pine Script v6 · Packet schema `order-flow-strategy/v1`

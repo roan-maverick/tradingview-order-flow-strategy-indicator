@@ -1,3 +1,5 @@
+<!-- Maintained by roan-maverick. -->
+
 # Order Flow Strategy for TradingView
 
 **A complete auction-market, order-flow day trading process, turned into one open-source TradingView indicator.**
@@ -5,6 +7,8 @@
 Most indicators give you a signal. This one runs a process. It reads the environment, waits for price to reach the right location, and only fires when order flow shows that one side of the market is trapped. Then it manages the trade with fixed risk rules.
 
 Open source · MIT license · Pine Script v6 · No repainting · Any market with volume: futures, crypto, stocks
+
+![Order Flow Strategy running on BTCUSDT, 5-minute](docs/indicator-btcusdt-5m.jpg)
 
 ---
 

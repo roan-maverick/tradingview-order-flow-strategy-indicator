@@ -1,3 +1,5 @@
+<!-- Maintained by roan-maverick. -->
+
 # The Order Flow Strategy, step by step
 
 This is the complete trading process the indicator automates. It is an intraday, auction-market approach: read the environment before the open, wait for price to reach the right location, and only act when order flow confirms that one side is trapped.

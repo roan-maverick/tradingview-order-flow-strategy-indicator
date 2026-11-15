@@ -1,3 +1,5 @@
+<!-- Maintained by roan-maverick. -->
+
 # Packet schema: `order-flow-strategy/v1`
 
 The indicator can send one JSON packet per closed candle, or only on setups and trade updates (default). Missing values are `null`. Prices are rounded to the symbol's tick size.
