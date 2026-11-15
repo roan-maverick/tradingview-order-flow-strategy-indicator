@@ -145,8 +145,8 @@ Mirror everything: value down, premium above VAH, Fibonacci from swing high to s
 | Value area | Volume profile built from every candle of the session (daily, weekly or cash session only): developing (default) or prior session |
 | Fibonacci zone | Automatic impulse leg detection, 0.705 / 0.788 / 0.886 zone, outside-value and internal-swing checks, 0.886 invalidation |
 | Low-volume nodes | Zone volume compared with the profile: Thin, Untested or Normal |
-| Absorption | Delta and the candle's volume POC: real footprint in the Pro edition, estimated from lower-timeframe candles in the Standard edition |
-| Second failure | A state machine: absorption, first shift, retest that fails higher, aggressive flip (Pro: with buy imbalances lighting up), entry |
+| Absorption | Delta and the candle's volume POC estimated from lower-timeframe candles |
+| Second failure | A state machine: absorption, first shift, retest that fails higher, aggressive flip, entry |
 | Participation | Relative (vs average) or absolute volume filter |
 | Management | Stop beyond the failure, value reclaim checkpoint, stop to entry at 1R or when value is not reclaimed, full target at the last swing, stop trailing behind each aggressive candle once price reaches the POC, the call wall or 1.5R |
 | Risk rules | Trade window, max trades per day, stop after consecutive losses |

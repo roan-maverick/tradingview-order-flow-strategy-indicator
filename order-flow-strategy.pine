@@ -30,8 +30,8 @@
 //   • Higher-timeframe structure uses the previous CLOSED higher-timeframe bar (expr[1] + lookahead_on).
 //   • Swing points are used only after full confirmation.
 //   • Order flow is ESTIMATED from lower-timeframe candles (request.security_lower_tf): volume on up
-//     candles counts as aggressive buying, volume on down candles as aggressive selling. TradingView
-//     does not give scripts tick-level bid / ask data.
+//     candles counts as aggressive buying, volume on down candles as aggressive selling. That keeps the
+//     indicator free on every TradingView plan.
 //   • Works on any market with volume data. Built for 1 to 15 minute charts (5 minute recommended).
 //
 //  For education and research. Not financial advice.
@@ -606,27 +606,12 @@ string ltf      = ltfIn == "Auto" ? ltfAuto : ltfIn
 bool   useLtf   = ltf != "" and timeframe.in_seconds(ltf) < chartSec
 [aSigned, aVol, aMid, aHi, aLo] = request.security_lower_tf(syminfo.tickerid, useLtf ? ltf : timeframe.period, f_flow())
 
-// @@FOOTPRINT_SOURCE_BEGIN
-// Standard edition: order flow is estimated from lower-timeframe candles (works on every TradingView plan).
-// tools/build_pro.py swaps this block for request.footprint() to build the Pro edition (Premium / Ultimate plans).
-bool   fpOk      = false   // real footprint data on this bar
-float  fpDelta   = na
-float  fpVol     = na
-float  fpPocMid  = na
-bool   fpBuyImb  = false   // the candle has at least one buy imbalance
-bool   fpSellImb = false   // the candle has at least one sell imbalance
-bool   needImb   = false   // flip candle must show imbalances (Pro edition)
-// @@FOOTPRINT_SOURCE_END
-
-float  barDelta = fpOk ? fpDelta : useLtf and array.size(aSigned) > 0 ? array.sum(aSigned) : (close > open ? volume : close < open ? -volume : 0.0)
-float  barVol   = fpOk ? fpVol : useLtf and array.size(aVol) > 0 ? array.sum(aVol) : volume
+float  barDelta = useLtf and array.size(aSigned) > 0 ? array.sum(aSigned) : (close > open ? volume : close < open ? -volume : 0.0)
+float  barVol   = useLtf and array.size(aVol) > 0 ? array.sum(aVol) : volume
 float  deltaPct = barVol > 0 ? barDelta / barVol * 100 : na
 float  volPoc   = hl2
-if fpOk and not na(fpPocMid)
-    volPoc := fpPocMid
-else if useLtf and array.size(aVol) > 0
+if useLtf and array.size(aVol) > 0
     volPoc := array.get(aMid, array.indexof(aVol, array.max(aVol)))
-string ofSource = fpOk ? "REAL_FOOTPRINT" : useLtf ? "ESTIMATED_LTF" : "ESTIMATED_CHART"
 float cRange   = high - low
 float pocPos   = cRange > 0 ? (volPoc - low) / cRange * 100 : 50.0
 float closePos = cRange > 0 ? (close - low) / cRange * 100 : 50.0
@@ -642,9 +627,8 @@ bool buyerAbsorbed  = deltaPct >= absDelta and pocPos >= 100 - absPocZone and cl
 // Aggression that gets a result (used for the flip entry and for trailing)
 bool buyersPush     = close > open and deltaPct >= shiftDelta
 bool sellersPush    = close < open and deltaPct <= -shiftDelta
-// Flip candle: with real footprint data, buyers lifting the offer must also light up imbalances
-bool buyersStep     = buyersPush and (not needImb or not fpOk or fpBuyImb)
-bool sellersStep    = sellersPush and (not needImb or not fpOk or fpSellImb)
+bool buyersStep     = buyersPush
+bool sellersStep    = sellersPush
 
 // Absorption quality 0-100 (display only): how strongly each absorption rule is met
 float relVolQ = na(relVol) ? 0.5 : f_clamp(relVol / 2, 0, 1)
@@ -963,7 +947,7 @@ f_packet() =>
     pk += ',"location":{"value_area_high":' + f_num(vaHigh, fp) + ',"poc":' + f_num(vaPOC, fp) + ',"value_area_low":' + f_num(vaLow, fp) + ',"position":"' + valuePos + '"'
     pk += ',"long_zone":{"ready":' + f_bool(lZoneReady) + ',"in_zone":' + f_bool(longLoc) + ',"top":' + f_num(lz1, fp) + ',"mid":' + f_num(lz2, fp) + ',"bottom":' + f_num(lz3, fp) + ',"leg_high":' + f_num(lH, fp) + ',"leg_low":' + f_num(lL, fp) + ',"zone_volume":"' + lZoneVol + '"}'
     pk += ',"short_zone":{"ready":' + f_bool(sZoneReady) + ',"in_zone":' + f_bool(shortLoc) + ',"bottom":' + f_num(sz1, fp) + ',"mid":' + f_num(sz2, fp) + ',"top":' + f_num(sz3, fp) + ',"leg_low":' + f_num(sL, fp) + ',"leg_high":' + f_num(sH, fp) + ',"zone_volume":"' + sZoneVol + '"}}'
-    pk += ',"order_flow":{"delta_pct":' + f_num(deltaPct, "#.#") + ',"volume_poc_position_pct":' + f_num(pocPos, "#.#") + ',"close_position_pct":' + f_num(closePos, "#.#") + ',"relative_volume":' + f_num(relVol, "#.##") + ',"participation_ok":' + f_bool(partOk) + ',"source":"' + ofSource + '","buyer_imbalance":' + f_bool(fpOk and fpBuyImb) + ',"seller_imbalance":' + f_bool(fpOk and fpSellImb)
+    pk += ',"order_flow":{"delta_pct":' + f_num(deltaPct, "#.#") + ',"volume_poc_position_pct":' + f_num(pocPos, "#.#") + ',"close_position_pct":' + f_num(closePos, "#.#") + ',"relative_volume":' + f_num(relVol, "#.##") + ',"participation_ok":' + f_bool(partOk)
     pk += ',"sellers_absorbed":' + f_bool(sellerAbsorbed) + ',"buyers_absorbed":' + f_bool(buyerAbsorbed) + ',"long_state":"' + lStateStr + '","short_state":"' + sStateStr + '"}'
     pk += ',"risk":{"trades_today":' + str.tostring(tradesToday) + ',"max_trades":' + str.tostring(maxTrades) + ',"loss_streak":' + str.tostring(lossStreak) + ',"max_loss_streak":' + str.tostring(maxLossStreak) + '}'
     pk += ',"trade":{"side":"' + tSideStr + '","status":"' + tStatus + '","open":' + f_bool(tSide != 0) + ',"entry":' + f_num(tEntry, fp) + ',"stop":' + f_num(tStop, fp) + ',"target":' + f_num(tTarget, fp) + ',"target_source":"' + tTargetSrc + '"'
@@ -1265,29 +1249,23 @@ int fpRows = math.max(2, math.min(footRows, int(math.floor(340.0 / (2 * footBars
 f_drawFoot(int n) =>
     float stp = (high - low) / n
     int   cnt = array.size(aVol)
-    if stp > 0 and (cnt > 0 or fpOk)
+    if stp > 0 and cnt > 0
         array<float> buyR  = array.new<float>(n, 0.0)
         array<float> sellR = array.new<float>(n, 0.0)
-        array<bool>  impB  = array.new<bool>(n, false)
-        array<bool>  impS  = array.new<bool>(n, false)
-        bool realRows = false
-        // @@FOOTPRINT_ROWS_BEGIN
-        if cnt > 0
-            for j = 0 to cnt - 1
-                float v   = nz(array.get(aVol, j))
-                float sgn = nz(array.get(aSigned, j))
-                int   r0  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aLo, j), low) - low) / stp)))
-                int   r1  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aHi, j), high) - low) / stp)))
-                float share = v / (r1 - r0 + 1)
-                for r = r0 to r1
-                    if sgn > 0
-                        array.set(buyR, r, array.get(buyR, r) + share)
-                    else if sgn < 0
-                        array.set(sellR, r, array.get(sellR, r) + share)
-                    else
-                        array.set(buyR, r, array.get(buyR, r) + share / 2)
-                        array.set(sellR, r, array.get(sellR, r) + share / 2)
-        // @@FOOTPRINT_ROWS_END
+        for j = 0 to cnt - 1
+            float v   = nz(array.get(aVol, j))
+            float sgn = nz(array.get(aSigned, j))
+            int   r0  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aLo, j), low) - low) / stp)))
+            int   r1  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aHi, j), high) - low) / stp)))
+            float share = v / (r1 - r0 + 1)
+            for r = r0 to r1
+                if sgn > 0
+                    array.set(buyR, r, array.get(buyR, r) + share)
+                else if sgn < 0
+                    array.set(sellR, r, array.get(sellR, r) + share)
+                else
+                    array.set(buyR, r, array.get(buyR, r) + share / 2)
+                    array.set(sellR, r, array.get(sellR, r) + share / 2)
         float maxCell = math.max(array.max(buyR), array.max(sellR))
         int   pocR = 0
         float pocV = -1.0
@@ -1305,8 +1283,8 @@ f_drawFoot(int n) =>
             float sv   = array.get(sellR, r)
             float top  = low + (r + 1) * stp
             float bot  = low + r * stp
-            bool  bImb = realRows ? array.get(impB, r) : bv > 0 and bv >= imbRatio * sv
-            bool  sImb = realRows ? array.get(impS, r) : sv > 0 and sv >= imbRatio * bv
+            bool  bImb = bv > 0 and bv >= imbRatio * sv
+            bool  sImb = sv > 0 and sv >= imbRatio * bv
             int   tB   = maxCell > 0 ? int(math.round(88 - 58 * bv / maxCell)) : 88
             int   tS   = maxCell > 0 ? int(math.round(88 - 58 * sv / maxCell)) : 88
             color brd  = r == pocR ? cGold : color.new(D_ROW, 35)
@@ -1317,7 +1295,7 @@ f_drawFoot(int n) =>
             color dc = d >= 0 ? cBull : cBear
             array.push(fpLabels, label.new(time, low, "Δ " + (d >= 0 ? "+" : "−") + f_k(math.abs(d)), xloc = xloc.bar_time, yloc = yloc.belowbar, style = label.style_label_up, color = color.new(dc, 78), textcolor = cSilver, size = size.tiny))
 
-if showFoot and (useLtf or fpOk) and bar_index > last_bar_index - footBars
+if showFoot and useLtf and bar_index > last_bar_index - footBars
     f_drawFoot(fpRows)
     while array.size(fpBoxes) > footBars * fpRows * 2
         box.delete(array.shift(fpBoxes))
@@ -1715,8 +1693,6 @@ if showPanel and barstate.islast
     if full
         f_head(r, "ORDER FLOW")
         r += 1
-        f_kv(r, "Data", fpOk ? "Real bid × ask footprint · " + str.tostring(imbRatio * 100, "0") + "% imbalances" : useLtf ? "Estimated from " + f_tfLabel(ltf) + " candles" : "Estimated from chart candles", fpOk ? cGold : cGrey)
-        r += 1
         f_meterRow(r, "Flow Pressure", flowShare * 100, f_signed(flowNet * 100, "0") + (flowNet >= 0 ? " buyers" : " sellers"), flowNet >= 0 ? cCyan : cPurple)
         r += 1
         float buyPct = na(deltaPct) ? na : (100 + deltaPct) / 2
@@ -1806,4 +1782,4 @@ if showPanel and barstate.islast
         f_kv(r, "Last Trade", f_title(tSideStr) + "  ·  " + f_title(tStatus) + (na(lastExitR) ? "" : "  ·  " + f_signed(lastExitR, "0.0") + "R"), tStatus == "TARGET_HIT" ? cBull : tStatus == "STOPPED" ? cBear : cGold)
         r += 1
 
-    f_span(r, fpOk ? "Real volume footprint · not advice" : "Order flow estimated from lower-timeframe data · not advice", cGrey, D_HEAD, D_SIZE)
+    f_span(r, "Order flow estimated from lower-timeframe data · not advice", cGrey, D_HEAD, D_SIZE)

@@ -26,23 +26,9 @@ Full explanation: **[docs/STRATEGY.md](docs/STRATEGY.md)**
 
 ---
 
-## Two editions
-
-| | Standard | Pro |
-|---|---|---|
-| File | [order-flow-strategy.pine](order-flow-strategy.pine) | [order-flow-strategy-pro.pine](order-flow-strategy-pro.pine) |
-| TradingView plan | Any, including free | **Premium or Ultimate** |
-| Order flow | Estimated from 1-minute candles inside each candle | **Real bid × ask volume footprint** (`request.footprint()`): real buy and sell volume per price row, the candle's real point of control, diagonal **400% imbalances** |
-| Flip candle | Aggressive close with positive delta | Same, plus the buyers must **light up imbalances** (like the bold numbers on his footprint) |
-| Everything else | Identical | Identical |
-
-TradingView only lets Premium and Ultimate accounts compile scripts that read footprint data, so the two editions are separate files. The Pro file is generated from the Standard one (`python3 tools/build_pro.py`); bars without footprint data fall back to the estimate.
-
----
-
 ## Install (2 minutes)
 
-1. Open **[order-flow-strategy.pine](order-flow-strategy.pine)** (or **[order-flow-strategy-pro.pine](order-flow-strategy-pro.pine)** on a Premium or Ultimate plan) and copy all of it.
+1. Open **[order-flow-strategy.pine](order-flow-strategy.pine)** and copy all of it.
 2. In TradingView, open the **Pine Editor** at the bottom of the chart.
 3. Delete the default code, paste, click **Save**, then **Add to chart**.
 4. Use a **5-minute chart** (1 to 15 minutes works). The default window is the first 90 minutes after the New York open. For crypto, you can switch it to 24/7 in the settings.
@@ -140,8 +126,6 @@ Full or Compact mode, six positions, three text sizes. Meters, the MTF section a
 | Volume filter | 1.0x average | Or an absolute number, for example 20,000 for MNQ 5-minute |
 | Target | Swing (trail near POC / walls) | Or nearest of POC and swing, POC only, swing only, or a fixed R |
 | Trail the stop behind aggression | On, starts at POC / wall / 1.5R | The stop follows every aggressive candle once trailing starts |
-| Footprint row size (Pro) | Auto | Ticks per footprint row: NQ 4, ES 1, BTC about $10 |
-| Flip candle must light up imbalances (Pro) | On | Requires real buy (or sell) imbalances on the entry candle |
 | Minimum reward | 1.5R | Targets closer than this are replaced by 1.5R |
 | Footprint candles / rows | 12 / 6 | How many recent candles get footprint cells, and how many price rows each |
 | Pressure wave | On, 21 core, 8 candles, 1.2 ATR | The cyan / purple bands through the candles |
@@ -212,7 +196,7 @@ Packet fields: **[docs/PACKET_SCHEMA.md](docs/PACKET_SCHEMA.md)** · Agent promp
 No. Setups, entries and trade tracking use closed candles only. Higher-timeframe structure uses only closed higher-timeframe bars, and swing points never move once confirmed.
 
 **Is this real order flow?**
-In the **Pro edition, yes**: it reads TradingView's volume footprint, so delta, the candle's point of control and the imbalances come from real bid × ask volume. The **Standard edition** estimates them from lower-timeframe candles (volume on up candles counts as buying, on down candles as selling), because TradingView only gives footprint data to Premium and Ultimate plans. It reads the same story at lower resolution. The dashboard's *Data* row always tells you which one you are looking at.
+It is an estimate, built so the indicator runs free on every TradingView plan. The footprint, delta and the volume point of control inside each candle come from lower-timeframe candles: volume on up candles counts as buying, volume on down candles as selling, spread across the price rows each one traded through. Imbalances compare buyers and sellers in the same row. It reads the same story as an exchange footprint, at lower resolution.
 
 **I can't see the footprint numbers.**
 Zoom in on the last candles. The cells are drawn inside each candle's width, so the numbers appear once the candles are wide enough. The footprint needs a chart timeframe above 1 minute (it reads 1-minute candles inside a 5-minute chart).
@@ -235,9 +219,7 @@ No. It produces setups, levels and data. You decide.
 
 ```
 tradingview-order-flow-strategy-indicator/
-├── order-flow-strategy.pine      the indicator, Standard edition (any plan)
-├── order-flow-strategy-pro.pine  Pro edition: real volume footprint (Premium / Ultimate)
-├── tools/build_pro.py            builds the Pro file from the Standard one
+├── order-flow-strategy.pine      the indicator (Pine Script v6, free on every TradingView plan)
 ├── docs/STRATEGY.md              the full strategy, step by step
 ├── docs/SPECIFICATION.md         every calculation and rule
 ├── docs/PACKET_SCHEMA.md         every field in the JSON packet

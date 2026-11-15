@@ -58,10 +58,7 @@
     "sellers_absorbed": false,
     "buyers_absorbed": false,
     "long_state": "IDLE",
-    "short_state": "IDLE",
-    "source": "ESTIMATED_LTF",
-    "buyer_imbalance": false,
-    "seller_imbalance": false
+    "short_state": "IDLE"
   },
   "risk": {
     "trades_today": 1,

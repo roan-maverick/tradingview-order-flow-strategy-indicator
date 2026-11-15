@@ -13,7 +13,7 @@ Every calculation the indicator performs, so a trader or an AI agent can verify 
 | No repainting | Setups, entries and trade tracking are evaluated only on closed bars (`barstate.isconfirmed`). |
 | No lookahead | Higher-timeframe structure is requested as `expr[1]` with `lookahead = barmerge.lookahead_on`, so only closed higher-timeframe bars are used. Swing points are confirmed pivots and never move. |
 | One process | Every signal passes environment, location, confirmation and the risk rules, in that order. |
-| Honest order flow | TradingView does not expose tick-level bid/ask data to scripts, so delta is estimated from lower-timeframe candles. This is stated wherever order flow is shown. |
+| Honest order flow | Delta is estimated from lower-timeframe candles so the indicator runs free on every TradingView plan. This is stated wherever order flow is shown. |
 
 ---
 
@@ -49,7 +49,6 @@ Every calculation the indicator performs, so a trader or an AI agent can verify 
 | Stops and targets | Stop buffer | 0.1 x ATR(14) |
 | Stops and targets | Target | Swing (trail near POC / walls) |
 | Stops and targets | Trail the stop behind aggression / start at | On / 1.5R (or the POC or gamma wall if reached first) |
-| Order flow (Pro only) | Footprint row size / flip candle must light up imbalances | Auto / On |
 | Stops and targets | Minimum reward / fixed R | 1.5R / 2.0R |
 | Stops and targets | Bars to get back into value | 6 |
 | Stops and targets | Move stop to entry at | 1.0R |
@@ -198,20 +197,6 @@ Inside the window, fewer than the max trades today, loss streak below the limit,
 | Absolute | volume >= 20,000 |
 | Off | always |
 
-### Pro edition: real volume footprint
-
-The Pro file replaces the estimate with `request.footprint(row ticks, 70, imbalance ratio x 100)` (TradingView Premium or Ultimate).
-
-| Value | Source |
-|---|---|
-| Delta, volume | `footprint.delta()`, `footprint.total_volume()` |
-| Volume POC | middle of `footprint.poc()` |
-| Imbalances | `volume_row.has_buy_imbalance()` / `has_sell_imbalance()`: a row's buy volume against the sell volume of the row below it (diagonal), at 400% |
-| Flip candle | buyers' flip must include at least one buy imbalance (sellers': a sell imbalance) |
-| Row size (auto) | NQ / MNQ 4 ticks, ES / MES 1, YM / MYM 5, other futures 2, BTC about $10, ETH about $1, other crypto 10 ticks, everything else 2 |
-
-Bars where TradingView has no footprint data fall back to the estimate.
-
 ### Footprint (display)
 
 For each of the last 12 candles (when a lower timeframe is available), the candle range is split into 6 equal price rows, drawn on the candle itself (sellers in the left half, buyers in the right half). Each lower-timeframe candle's volume is spread evenly across the rows between its low and high and counted as buying (up candle), selling (down candle) or half and half (unchanged).
@@ -220,7 +205,7 @@ For each of the last 12 candles (when a lower timeframe is available), the candl
 |---|---|
 | Left cell | Selling volume in the row, red, opacity scaled to the largest cell of the candle |
 | Right cell | Buying volume in the row, green, opacity scaled the same way |
-| Imbalance | Standard: one side at least 4x the other in the same row. Pro: TradingView's diagonal imbalance flags. Bright magenta (sellers) or cyan (buyers) |
+| Imbalance | One side at least 4x the other in the same row: bright magenta (sellers) or cyan (buyers) |
 | POC outline | Gold border on the row with the most total volume |
 | Delta label | Buying minus selling volume of the candle |
 
@@ -303,7 +288,7 @@ A target hit or a trailing-stop exit resets the loss streak. Moving the stop to 
 
 ## 8. Known limitations
 
-- Standard edition: delta and the candle POC are estimates from lower-timeframe candles. The Pro edition reads real footprint data but needs a Premium or Ultimate plan, and TradingView does not have footprint data for every bar or symbol.
+- Delta, the candle POC and footprint imbalances are estimates from lower-timeframe candles, not exchange bid/ask footprint data, so the dominance shift uses net delta.
 - Gamma exposure is not available in TradingView and must be entered manually.
 - News is not detected. Avoid setups right before scheduled releases.
 - Symbols without volume data cannot produce order flow signals. Set the volume filter to Off and expect no absorption signals.

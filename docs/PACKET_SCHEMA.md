@@ -55,8 +55,6 @@ Full example: [`examples/sample_packet.json`](../examples/sample_packet.json)
 | `participation_ok` | bool | Volume filter passed |
 | `sellers_absorbed`, `buyers_absorbed` | bool | Absorption detected on this candle |
 | `long_state`, `short_state` | enum | `IDLE`, `ABSORPTION`, `FIRST_SHIFT` |
-| `source` | enum | `REAL_FOOTPRINT` (Pro edition with footprint data), `ESTIMATED_LTF`, `ESTIMATED_CHART` |
-| `buyer_imbalance`, `seller_imbalance` | bool | The candle printed at least one real buy / sell imbalance (always false when the source is estimated) |
 
 ## `risk`
 
