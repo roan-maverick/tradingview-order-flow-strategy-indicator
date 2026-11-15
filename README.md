@@ -10,6 +10,8 @@ Open source · MIT license · Pine Script v6 · No repainting · Any market with
 
 ![Order Flow Strategy running on BTCUSDT, 5-minute](docs/indicator-btcusdt-5m.jpg)
 
+BTCUSDT · 5-minute · Binance. Short active, stop at entry, target at the point of control.
+
 ---
 
 ## The strategy in one picture
