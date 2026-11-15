@@ -52,6 +52,12 @@ Every calculation the indicator performs, so a trader or an AI agent can verify 
 | Stops and targets | Bars to get back into value | 6 |
 | Stops and targets | Move stop to entry at | 1.0R |
 | AI agent packet | Send JSON packet | Setups and trade updates |
+| Visuals | Panel mode / position / text size | Full / Top right / Small |
+| Visuals | Trapped traders zones, trade window tint | On, On |
+| Visuals | Color candles by delta | Off |
+| Footprint | Show footprint / delta under each candle | On / On |
+| Footprint | Footprint candles / rows per candle | 12 / 6 |
+| Footprint | Imbalance ratio | 4.0 (400%) |
 
 ---
 
