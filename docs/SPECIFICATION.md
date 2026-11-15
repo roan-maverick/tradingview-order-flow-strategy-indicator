@@ -52,12 +52,16 @@ Every calculation the indicator performs, so a trader or an AI agent can verify 
 | Stops and targets | Bars to get back into value | 6 |
 | Stops and targets | Move stop to entry at | 1.0R |
 | AI agent packet | Send JSON packet | Setups and trade updates |
-| Visuals | Panel mode / position / text size | Full / Top right / Small |
-| Visuals | Trapped traders zones, trade window tint | On, On |
-| Visuals | Color candles by delta | Off |
-| Footprint | Show footprint / delta under each candle | On / On |
-| Footprint | Footprint candles / rows per candle | 12 / 6 |
+| General | Layered glow / color event candles / color other candles by delta / tint the trade window | On / On / Off / On |
+| Colors | Buyers, sellers, cyan, magenta, value area, POC, amber, text, muted | #00FF9C, #FF2D55, #00E5FF, #FF2BD6, #A855F7, #FFC400, #FF9F1C, #C0C6D4, #6B7280 |
+| Chart visuals | Value area, zone, leg anchor, absorption footprints and labels, first shift, entries, trapped zones, outcome tags, target map, gamma levels | All on |
+| Chart visuals | Keep absorption footprints / keep trades on chart | 10 / 10 |
+| Footprint | Show footprint / delta tag under each candle | On / On |
+| Footprint | Footprint candles / rows per candle | 12 / 6 (rows are reduced automatically if candles x rows would exceed the drawing limit) |
 | Footprint | Imbalance ratio | 4.0 (400%) |
+| Dashboard | Mode / position / text size | Full / Top right / Small |
+| Dashboard | Score meters, multi-timeframe structure, key levels | On |
+| Dashboard | Extra structure rows | 15 and D |
 
 ---
 
@@ -191,15 +195,27 @@ Inside the window, fewer than the max trades today, loss streak below the limit,
 
 ### Footprint (display)
 
-For each of the last 12 candles (when a lower timeframe is available), the candle range is split into 6 equal price rows. Each lower-timeframe candle's volume is spread evenly across the rows between its low and high and counted as buying (up candle), selling (down candle) or half and half (unchanged).
+For each of the last 12 candles (when a lower timeframe is available), the candle range is split into 6 equal price rows, drawn on the candle itself (sellers in the left half, buyers in the right half). Each lower-timeframe candle's volume is spread evenly across the rows between its low and high and counted as buying (up candle), selling (down candle) or half and half (unchanged).
 
 | Element | Rule |
 |---|---|
 | Left cell | Selling volume in the row, red, opacity scaled to the largest cell of the candle |
 | Right cell | Buying volume in the row, green, opacity scaled the same way |
-| Imbalance | One side at least 4x the other in the same row: bright red (sellers) or teal (buyers) |
+| Imbalance | One side at least 4x the other in the same row: bright magenta (sellers) or cyan (buyers) |
 | POC outline | Gold border on the row with the most total volume |
 | Delta label | Buying minus selling volume of the candle |
+
+### Display-only metrics
+
+These values are shown on the chart and the dashboard. They never change a signal.
+
+| Metric | Definition |
+|---|---|
+| Absorption quality (AQ) | Long: 35 x min(-delta % / 40, 1) + 25 x (35 - POC position) / 35 + 25 x (close position - 30) / 70 + 15 x min(relative volume / 2, 1). Short mirrors it. Each part is clamped to 0..1, total 0 to 100 |
+| Buy / sell aggression | Buy = (100 + delta %) / 2, sell = 100 - buy |
+| Session delta | Sum of every candle's delta since the start of the day |
+| Setup progress | 1 structure, 2 zone ready, 3 price in the zone, 4 absorption, 5 first shift, 6 entry |
+| Target map (flat) | In the direction of the structure: the POC, the last swing extreme and the call or put wall, nearest first, at least 0.5 ATR apart, up to 3 |
 
 ---
 
@@ -244,9 +260,9 @@ A target hit resets the loss streak. The tracker is a reference: it ignores fees
 | Output | Details |
 |---|---|
 | JSON packet | `alert()` on bar close. Schema: [PACKET_SCHEMA.md](PACKET_SCHEMA.md) |
-| Alert conditions | "OFS: LONG entry", "OFS: SHORT entry", "OFS: Absorption" |
-| Strategy panel | Current state and what it is waiting for, then each of the four steps |
-| Chart | Footprint cells and delta on recent candles, value area gradient band with POC, discount or premium zone with Fibonacci tags, ABS markers, trapped traders zones, LONG / SHORT labels with a tooltip, risk and reward boxes, trade window tint, gamma levels |
+| Alert conditions | "OFS: LONG entry", "OFS: SHORT entry", "OFS: Absorption", "OFS: Trade closed" |
+| Dashboard | Setup state and next step, order flow meters, 4-step process lights, multi-timeframe structure, key levels, active trade |
+| Chart | Footprint and delta tags on recent candles, glowing value area with POC, discount or premium zone with Fibonacci tags and leg anchor, absorption circles, first shift squares, entry outlines and momentum trails, trapped traders zones, risk and reward boxes, outcome tags, target fields, trade window tint, gamma levels |
 | Data Window | Structure, delta %, volume POC position, relative volume, long and short setup states, trade side |
 
 ---
