@@ -46,7 +46,7 @@ The indicator works on the free TradingView plan. Only the webhook alerts for AI
 
 ### Before the open: Step 2, Location
 
-3. **Find the value area.** The glowing purple band is the value area and the gold line is the point of control. Below the band is **discount**, above it is **premium**.
+3. **Find the value area.** The glowing indigo band is the value area and the gold line is the point of control. Below the band is **discount**, above it is **premium**.
 4. **Find the zone.** In a value-up market a glowing green **DISCOUNT ZONE** appears on the last impulse leg (the dotted line shows which leg is measured), but only if it sits outside value and the leg has an internal swing. In a value-down market it is a red **PREMIUM ZONE**. The amber dashed line is 0.886: if price closes beyond it, the zone is gone.
 
 ### Live: Step 3, Confirmation
@@ -69,12 +69,17 @@ Shorts work exactly the same in reverse.
 
 ## What you see on the chart
 
-Dark navy tags with neon text, layered glow on every zone, and one color language: **cyan = sellers trapped (bullish)**, **magenta = buyers trapped (bearish)**, green and red = buyers and sellers, purple = value, gold = point of control, amber = warnings and invalidation. All colors can be changed in the settings.
+Dark navy tags with neon text, layered glow on every zone, and one color language: **cyan = buyers in control / sellers trapped**, **purple and magenta = sellers in control / buyers trapped**, green and red = buyers and sellers, indigo = value area, gold = point of control, amber = warnings and invalidation. All colors can be changed in the settings.
 
 | Element | Meaning |
 |---|---|
+| **Order flow pressure wave** | The glowing bands running through the candles. **Cyan buyers wave above, purple sellers wave below**, around a core line. The side in control widens, measured from volume-weighted aggressive buying vs selling over the last 8 candles. The core line turns cyan or purple when control changes |
+| **Red / green liquidity zones** | **BSL** (buy-side liquidity) zones at swing highs, **SSL** (sell-side liquidity) zones at swing lows, extended to the right. Equal highs or lows merge into one zone (*Equal Highs ×2*). These resting orders are natural targets |
+| **Liquidity sweeps** | *BSL Swept ⟲* / *SSL Swept ⟲*: price ran the stops beyond a swing and closed back. The zone turns dashed and stops extending. A sell-side sweep into discount, followed by absorption, is the classic long setup |
+| **Inefficiency corridors** | Dashed cyan (up) or purple (down) bands where price moved so fast that little business was done. Tracked until filled: *Unfilled*, *40% filled*, *Filled ✓* |
+| **⚡ Impulse candles** | Glowing outline on aggression that got a result (large body, close near the extreme, strong volume). The opposite of absorption |
 | **Footprint on the candles** | The most recent candles are split into price rows: **sellers on the left, buyers on the right**, shaded by how much volume traded there. Bright cyan or magenta cells are **imbalances** (one side 4x the other, the 400% rule). The **gold outline** is the candle's own point of control. A **Δ tag** under each candle shows its delta. Zoom in to read the numbers |
-| **Purple glowing band + gold line** | Value area (VAH to VAL), brightest around the point of control, with VAH, POC and VAL tags on the right |
+| **Indigo glowing band + gold line** | Value area (VAH to VAL), brightest around the point of control, with VAH, POC and VAL tags on the right |
 | **Discount / premium zone** | Glowing green or red zone on the impulse leg with 0.705, 0.786 and ✕ 0.886 tags, a dotted leg anchor line and a tag showing the zone volume (thin, untested or normal) |
 | **Absorption circles** | Cyan circle at the low (sellers absorbed) or magenta circle at the high (buyers absorbed), with delta and absorption quality |
 | **Small squares** | First shift: the first close against the absorbed side |
@@ -82,7 +87,7 @@ Dark navy tags with neon text, layered glow on every zone, and one color languag
 | **Trapped Sellers / Trapped Buyers ⚠** | The price band where the absorbed side got trapped. Their forced exits fuel the move |
 | **Risk and reward boxes** | Entry to stop in red, entry to target in green. A dashed gold line appears when the stop moves to entry |
 | **Outcome tags** | ✔ TARGET, ✕ STOPPED or ● BREAKEVEN with the result in R |
-| **Target fields** | To the right of price. With a trade open: the target, with the distance and R still to go. When flat: T1 / T2 in the direction of the structure (POC, last swing, call or put wall) |
+| **Target fields** | To the right of price. With a trade open: the target, with the distance and R still to go. When flat: T1 / T2 in the direction of the structure (POC, last swing, nearest liquidity zone, call or put wall) |
 | **ENTRY / STOP tags** | Live levels of the open trade |
 | **Cyan tint** | The active trade window (first 90 minutes of the New York open by default) |
 | **Gamma lines** | Call wall, put wall and gamma flip, when you enter them |
@@ -93,10 +98,10 @@ Dark navy tags with neon text, layered glow on every zone, and one color languag
 |---|---|
 | Header | Market, timeframe, price, ATR, structure (with gamma regime) |
 | **Setup State** | The state of the process in one line (*VALUE UP*, *IN DISCOUNT*, *ABSORPTION*, *LONG ARMED*, *LONG ACTIVE*...) and **Next**: what it is waiting for, or how to manage the open trade |
-| **Order Flow · Last Candle** | Buy and sell aggression meters, participation, absorption quality of the active setup, where the volume traded inside the candle, session delta |
+| **Order Flow** | Flow pressure (who is in control over the last candles), buy and sell aggression of the last candle, participation, absorption quality of the active setup, where the volume traded inside the candle, session delta |
 | **4-Step Process** | Setup progress (0 to 6 stages) and a ✔ / ◐ / ✕ light for environment, location, confirmation and the risk rules |
 | **Structure · MTF** | Value up, value down or balance on four timeframes. ◆ marks the two that drive the filter |
-| **Key Levels** | Value area, POC, the zone, the invalidation level and the next target |
+| **Key Levels** | Value area, POC, the zone, the invalidation level, nearest buy-side and sell-side liquidity, and the next target |
 | **Active Trade** | Status, entry, stop, target and open P&L in R, with a progress meter to the target |
 
 Full or Compact mode, six positions, three text sizes. Meters, the MTF section and key levels can each be turned off.
@@ -120,6 +125,9 @@ Full or Compact mode, six positions, three text sizes. Meters, the MTF section a
 | Target | Auto (POC, swing, R) | Or POC only, swing only, or a fixed R |
 | Minimum reward | 1.5R | Targets closer than this are replaced by 1.5R |
 | Footprint candles / rows | 12 / 6 | How many recent candles get footprint cells, and how many price rows each |
+| Pressure wave | On, 21 core, 8 candles, 1.2 ATR | The cyan / purple bands through the candles |
+| Liquidity zones | On, 4 per side, 0.15 ATR equal tolerance | Swing high / low zones and sweeps |
+| Inefficiencies / impulse | On, 0.4 ATR / 1.3 ATR | Fast-move corridors and impulse candles |
 | Colors | Neon palette | Every color of the indicator |
 | Layered glow effects | On | Turn off for a flatter look |
 | Imbalance ratio | 4 (400%) | When a footprint cell lights up |

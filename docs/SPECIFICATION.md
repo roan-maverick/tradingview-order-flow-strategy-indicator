@@ -56,6 +56,9 @@ Every calculation the indicator performs, so a trader or an AI agent can verify 
 | Colors | Buyers, sellers, cyan, magenta, value area, POC, amber, text, muted | #00FF9C, #FF2D55, #00E5FF, #FF2BD6, #A855F7, #FFC400, #FF9F1C, #C0C6D4, #6B7280 |
 | Chart visuals | Value area, zone, leg anchor, absorption footprints and labels, first shift, entries, trapped zones, outcome tags, target map, gamma levels | All on |
 | Chart visuals | Keep absorption footprints / keep trades on chart | 10 / 10 |
+| Pressure wave | Show / core length / smoothing / amplitude | On / 21 / 8 / 1.2 x ATR |
+| Resting liquidity | Zones / sweeps / equal tolerance / zones per side / swept kept | On / On / 0.15 x ATR / 4 / 2 |
+| Inefficiencies and impulse | Corridors / min size / max / impulse / min body / max | On / 0.4 x ATR / 5 / On / 1.3 x ATR / 8 |
 | Footprint | Show footprint / delta tag under each candle | On / On |
 | Footprint | Footprint candles / rows per candle | 12 / 6 (rows are reduced automatically if candles x rows would exceed the drawing limit) |
 | Footprint | Imbalance ratio | 4.0 (400%) |
@@ -215,7 +218,12 @@ These values are shown on the chart and the dashboard. They never change a signa
 | Buy / sell aggression | Buy = (100 + delta %) / 2, sell = 100 - buy |
 | Session delta | Sum of every candle's delta since the start of the day |
 | Setup progress | 1 structure, 2 zone ready, 3 price in the zone, 4 absorption, 5 first shift, 6 entry |
-| Target map (flat) | In the direction of the structure: the POC, the last swing extreme and the call or put wall, nearest first, at least 0.5 ATR apart, up to 3 |
+| Target map (flat) | In the direction of the structure: the POC, the last swing extreme, the nearest liquidity zone and the call or put wall, nearest first, at least 0.5 ATR apart, up to 3 |
+| Flow pressure | Per candle: buy share = (volume + delta) / (2 x volume), or the close position when there is no volume. Weighted by relative volume (0.5 to 2), EMA(8) of buy and sell shares. Flow share = buy / (buy + sell), net = 2 x share - 1 |
+| Pressure wave | Core = EMA(hl2, 21). Buyers band = core + EMA(ATR x 1.2 x (0.25 + share), 3), sellers band = core - EMA(ATR x 1.2 x (1.25 - share), 3), inner lines at 55%. Core color changes when net crosses ±0.08 |
+| Liquidity zones | Every confirmed swing (strength 5) adds a zone of ±0.12 ATR. A new swing within 0.15 ATR of a zone merges into it (equal highs / lows). Wick beyond and close back = sweep (zone kept, dashed). Close beyond = zone removed |
+| Inefficiency | Up: low > high 2 bars ago, the middle candle bullish, gap ≥ 0.4 ATR (down mirrors it). Fill % = how far price has traded back into the corridor |
+| Impulse | Body ≥ 1.3 ATR, body ≥ 60% of the range, close in the outer 30% and relative volume ≥ 1.2 |
 
 ---
 
@@ -262,7 +270,7 @@ A target hit resets the loss streak. The tracker is a reference: it ignores fees
 | JSON packet | `alert()` on bar close. Schema: [PACKET_SCHEMA.md](PACKET_SCHEMA.md) |
 | Alert conditions | "OFS: LONG entry", "OFS: SHORT entry", "OFS: Absorption", "OFS: Trade closed" |
 | Dashboard | Setup state and next step, order flow meters, 4-step process lights, multi-timeframe structure, key levels, active trade |
-| Chart | Footprint and delta tags on recent candles, glowing value area with POC, discount or premium zone with Fibonacci tags and leg anchor, absorption circles, first shift squares, entry outlines and momentum trails, trapped traders zones, risk and reward boxes, outcome tags, target fields, trade window tint, gamma levels |
+| Chart | Order flow pressure wave, liquidity zones and sweeps, inefficiency corridors, impulse candles, footprint and delta tags on recent candles, glowing value area with POC, discount or premium zone with Fibonacci tags and leg anchor, absorption circles, first shift squares, entry outlines and momentum trails, trapped traders zones, risk and reward boxes, outcome tags, target fields, trade window tint, gamma levels |
 | Data Window | Structure, delta %, volume POC position, relative volume, long and short setup states, trade side |
 
 ---

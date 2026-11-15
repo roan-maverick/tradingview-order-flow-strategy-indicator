@@ -21,6 +21,7 @@
 //   04 Order Flow Engine      05 Absorption Detector     06 Second Failure Entry
 //   07 Trapped Traders        08 Trade Management        09 Target Map
 //   10 Footprint              11 Strategy Dashboard      12 AI Agent Packet
+//   13 Order Flow Pressure    14 Resting Liquidity       15 Inefficiencies & Impulse
 //
 //  INTEGRITY
 //  ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -50,9 +51,12 @@ const string G_OF  = "05 · Order Flow Confirmation"
 const string G_VOL = "06 · Participation"
 const string G_TRD = "07 · Stops & Targets"
 const string G_VIS = "08 · Chart Visuals"
-const string G_FP  = "09 · Footprint"
-const string G_DSH = "10 · Strategy Dashboard"
-const string G_AGT = "11 · AI Agent Packet"
+const string G_WAV = "09 · Order Flow Pressure Wave"
+const string G_LIQ = "10 · Resting Liquidity"
+const string G_INF = "11 · Inefficiencies & Impulse"
+const string G_FP  = "12 · Footprint"
+const string G_DSH = "13 · Strategy Dashboard"
+const string G_AGT = "14 · AI Agent Packet"
 
 const string MODE_NY  = "New York open (first 90 min)"
 const string MODE_CUS = "Custom session"
@@ -69,7 +73,8 @@ color  cBull         = input.color(#00FF9C, "Buyers · Neon Green", group = G_CO
 color  cCyan         = input.color(#00E5FF, "Sellers absorbed · long targets · Electric Cyan", group = G_COL, display = display.none)
 color  cBear         = input.color(#FF2D55, "Sellers · Neon Red", group = G_COL, display = display.none)
 color  cMagenta      = input.color(#FF2BD6, "Buyers absorbed · short targets · Magenta", group = G_COL, display = display.none)
-color  cPurple       = input.color(#A855F7, "Value area · Purple", group = G_COL, display = display.none)
+color  cPurple       = input.color(#A855F7, "Sellers wave · Purple", group = G_COL, display = display.none)
+color  cValue        = input.color(#536DFE, "Value area · Indigo", group = G_COL, display = display.none)
 color  cGold         = input.color(#FFC400, "Point of control · Gold", group = G_COL, display = display.none)
 color  cAmber        = input.color(#FF9F1C, "Absorption · invalidation · Amber", group = G_COL, display = display.none)
 color  cSilver       = input.color(#C0C6D4, "Text · Silver", group = G_COL, display = display.none)
@@ -145,14 +150,35 @@ bool   showGex       = input.bool(true, "Gamma levels", group = G_VIS, display =
 int    keepAbs       = input.int(10, "Keep absorption footprints", minval = 1, maxval = 50, group = G_VIS, display = display.none)
 int    keepTrades    = input.int(10, "Keep trades on chart", minval = 1, maxval = 40, group = G_VIS, display = display.none)
 
-// ── 09 Footprint
+// ── 09 Order flow pressure wave
+bool   showWave      = input.bool(true, "Show pressure wave", group = G_WAV, display = display.none, tooltip = "Cyan buyers wave above, purple sellers wave below. The side in control widens. Measured from volume-weighted aggressive buying vs selling (lower-timeframe delta) over the last candles.")
+int    waveLen       = input.int(21, "Wave core length", minval = 5, maxval = 100, group = G_WAV, display = display.none)
+int    pressLen      = input.int(8, "Pressure smoothing (candles)", minval = 2, maxval = 50, group = G_WAV, display = display.none)
+float  waveAmp       = input.float(1.2, "Wave amplitude (x ATR)", minval = 0.2, maxval = 5, step = 0.1, group = G_WAV, display = display.none)
+
+// ── 10 Resting liquidity
+bool   showLiq       = input.bool(true, "Buy-side / sell-side liquidity zones", group = G_LIQ, display = display.none, tooltip = "Red zones at swing highs (buy-side liquidity: stops and breakout orders above), green zones at swing lows (sell-side liquidity). Resting orders at the last swing are a natural target.")
+bool   showSweeps    = input.bool(true, "Mark liquidity sweeps", group = G_LIQ, display = display.none)
+float  eqTol         = input.float(0.15, "Equal highs / lows tolerance (x ATR)", minval = 0.02, maxval = 1, step = 0.01, group = G_LIQ, display = display.none)
+int    maxLiq        = input.int(4, "Active zones per side", minval = 1, maxval = 10, group = G_LIQ, display = display.none)
+int    keepSwept     = input.int(2, "Keep swept zones per side", minval = 0, maxval = 10, group = G_LIQ, display = display.none)
+
+// ── 11 Inefficiencies and impulse
+bool   showIneff     = input.bool(true, "Inefficiency corridors", group = G_INF, display = display.none, tooltip = "Bands price moved through so fast that little business was done (low-volume areas). Price tends to come back through them or reject them sharply. Tracked until filled.")
+float  ineffMin      = input.float(0.4, "Minimum corridor size (x ATR)", minval = 0.1, maxval = 3, step = 0.05, group = G_INF, display = display.none)
+int    maxIneff      = input.int(5, "Max corridors", minval = 1, maxval = 20, group = G_INF, display = display.none)
+bool   showImp       = input.bool(true, "Impulse candles", group = G_INF, display = display.none, tooltip = "Aggression WITH a result: a large candle closing near its extreme on strong volume. The opposite of absorption.")
+float  impMult       = input.float(1.3, "Impulse: minimum body (x ATR)", minval = 0.5, maxval = 5, step = 0.1, group = G_INF, display = display.none)
+int    maxImp        = input.int(8, "Max impulse candles", minval = 1, maxval = 30, group = G_INF, display = display.none)
+
+// ── 12 Footprint
 bool   showFoot      = input.bool(true, "Show footprint on recent candles", group = G_FP, display = display.none, tooltip = "Splits each recent candle into price rows: sellers on the left, buyers on the right, shaded by volume. Bright cells are imbalances, the gold outline is the candle's point of control. Zoom in to read the numbers.")
 int    footBars      = input.int(12, "Footprint candles", minval = 1, maxval = 30, group = G_FP, display = display.none)
 int    footRows      = input.int(6, "Rows per candle", minval = 3, maxval = 12, group = G_FP, display = display.none)
 float  imbRatio      = input.float(4.0, "Imbalance ratio (4 = 400%)", minval = 1.5, maxval = 10, step = 0.5, group = G_FP, display = display.none)
 bool   showDeltaLbl  = input.bool(true, "Delta tag under each footprint candle", group = G_FP, display = display.none)
 
-// ── 10 Strategy dashboard
+// ── 13 Strategy dashboard
 bool   showPanel     = input.bool(true, "Show dashboard", group = G_DSH, display = display.none)
 string panelModeIn   = input.string("Full", "Mode", options = ["Full", "Compact"], group = G_DSH, display = display.none)
 string panelPosIn    = input.string("Top right", "Position", options = ["Top right", "Top left", "Bottom right", "Bottom left", "Middle right", "Middle left"], group = G_DSH, display = display.none)
@@ -163,7 +189,7 @@ bool   keyOn         = input.bool(true, "Key levels", group = G_DSH, display = d
 string mtfA          = input.timeframe("15", "Extra structure row (lower)", group = G_DSH, display = display.none)
 string mtfD          = input.timeframe("D", "Extra structure row (higher)", group = G_DSH, display = display.none)
 
-// ── 11 AI agent packet
+// ── 14 AI agent packet
 string packetMode    = input.string("Setups and trade updates", "Send JSON packet", options = ["Every bar close", "Setups and trade updates", "Off"], group = G_AGT, display = display.none, tooltip = "Create ONE alert with condition 'Any alert() function call' and your agent's webhook URL.")
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -208,6 +234,50 @@ method kill(Fx this) =>
         label.delete(this.t2)
     if not na(this.t3)
         label.delete(this.t3)
+    true
+
+// A resting liquidity level (swing high or low, merged when equal)
+type Level
+    float price
+    int   bar
+    bool  isHigh
+    int   touches = 1
+    float half
+    box   bx
+    box   gl
+    label lb
+    line  ln
+
+method killLevel(Level this) =>
+    if not na(this.bx)
+        box.delete(this.bx)
+    if not na(this.gl)
+        box.delete(this.gl)
+    if not na(this.lb)
+        label.delete(this.lb)
+    if not na(this.ln)
+        line.delete(this.ln)
+    true
+
+// An inefficiency corridor (price moved through without trading)
+type Gap
+    float top
+    float bot
+    int   dir
+    int   t0
+    float fillLvl
+    bool  active = true
+    box   bx
+    box   gl
+    label lb
+
+method killGap(Gap this) =>
+    if not na(this.bx)
+        box.delete(this.bx)
+    if not na(this.gl)
+        box.delete(this.gl)
+    if not na(this.lb)
+        label.delete(this.lb)
     true
 
 f_trim(array<Fx> arr, int maxN) =>
@@ -848,20 +918,54 @@ alertcondition(absLongMark or absShortMark, "OFS: Absorption", "Order Flow Strat
 alertcondition(tradeClosed, "OFS: Trade closed", "Order Flow Strategy: trade closed on {{ticker}} ({{interval}}) at {{close}}")
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
+//  VISUALS · 13 ORDER FLOW PRESSURE WAVE (who is in control, drawn through the candles)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Share of aggressive buying per candle, weighted by relative volume, smoothed over the last candles.
+// Without volume data the close position inside the candle is used instead.
+float wShareBar = barVol > 0 ? f_clamp((barVol + nz(barDelta)) / (2 * barVol), 0, 1) : closePos / 100
+float wWeight   = na(relVol) ? 1.0 : f_clamp(relVol, 0.5, 2.0)
+float wBuyE     = ta.ema(wShareBar * wWeight, pressLen)
+float wSellE    = ta.ema((1 - wShareBar) * wWeight, pressLen)
+float flowShare = wBuyE + wSellE > 0 ? wBuyE / (wBuyE + wSellE) : 0.5
+float flowNet   = 2 * flowShare - 1
+float wMid      = ta.ema(hl2, waveLen)
+float wUpAmp    = ta.ema(nz(atrV) * waveAmp * (0.25 + flowShare), 3)
+float wDnAmp    = ta.ema(nz(atrV) * waveAmp * (1.25 - flowShare), 3)
+var int flowState = 0
+if flowNet > 0.08
+    flowState := 1
+else if flowNet < -0.08
+    flowState := -1
+color flowCol   = flowState >= 0 ? cCyan : cPurple
+
+plot(showWave and glowOn ? wMid + wUpAmp * 0.55 : na, "Buyers wave · glow", color = color.new(cCyan, 82), linewidth = 6, display = display.pane)
+plot(showWave and glowOn ? wMid - wDnAmp * 0.55 : na, "Sellers wave · glow", color = color.new(cPurple, 82), linewidth = 6, display = display.pane)
+plot(showWave and glowOn ? wMid : na, "Flow core · glow", color = color.new(flowCol, 85), linewidth = 5, display = display.pane)
+plWM  = plot(showWave ? wMid : na, "Flow core", color = color.new(flowCol, 25), linewidth = 1, display = display.pane)
+plWUO = plot(showWave ? wMid + wUpAmp : na, "Buyers wave · outer", color = color.new(cCyan, 55), linewidth = 1, display = display.pane)
+plWUI = plot(showWave ? wMid + wUpAmp * 0.55 : na, "Buyers wave · inner", color = color.new(cCyan, 10), linewidth = 2, display = display.pane)
+plWDO = plot(showWave ? wMid - wDnAmp : na, "Sellers wave · outer", color = color.new(cPurple, 55), linewidth = 1, display = display.pane)
+plWDI = plot(showWave ? wMid - wDnAmp * 0.55 : na, "Sellers wave · inner", color = color.new(cPurple, 10), linewidth = 2, display = display.pane)
+fill(plWM, plWUI, color = color.new(cCyan, 88), title = "Buyers wave · inner fill")
+fill(plWUI, plWUO, color = color.new(cCyan, 94), title = "Buyers wave · outer fill")
+fill(plWM, plWDI, color = color.new(cPurple, 88), title = "Sellers wave · inner fill")
+fill(plWDI, plWDO, color = color.new(cPurple, 94), title = "Sellers wave · outer fill")
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 //  VISUALS · 02 VALUE AREA PROFILE, TRADE WINDOW, CANDLES
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 bgcolor(showWindowBg and windowMode != MODE_ALL and inWindow ? color.new(cCyan, 95) : na, title = "Trade window")
 
 // Glow first, crisp lines on top
-plot(showVA and glowOn ? vaHigh : na, "Value area high · glow", color = color.new(cPurple, 80), style = plot.style_linebr, linewidth = 6, display = display.pane)
-plot(showVA and glowOn ? vaLow : na, "Value area low · glow", color = color.new(cPurple, 80), style = plot.style_linebr, linewidth = 6, display = display.pane)
+plot(showVA and glowOn ? vaHigh : na, "Value area high · glow", color = color.new(cValue, 80), style = plot.style_linebr, linewidth = 6, display = display.pane)
+plot(showVA and glowOn ? vaLow : na, "Value area low · glow", color = color.new(cValue, 80), style = plot.style_linebr, linewidth = 6, display = display.pane)
 plot(showVA and glowOn ? vaPOC : na, "Point of control · glow", color = color.new(cGold, 78), style = plot.style_linebr, linewidth = 8, display = display.pane)
-plVAH = plot(showVA ? vaHigh : na, "Value area high", color = color.new(cPurple, 5), style = plot.style_linebr, linewidth = 1, display = display.pane)
-plVAL = plot(showVA ? vaLow : na, "Value area low", color = color.new(cPurple, 5), style = plot.style_linebr, linewidth = 1, display = display.pane)
+plVAH = plot(showVA ? vaHigh : na, "Value area high", color = color.new(cValue, 5), style = plot.style_linebr, linewidth = 1, display = display.pane)
+plVAL = plot(showVA ? vaLow : na, "Value area low", color = color.new(cValue, 5), style = plot.style_linebr, linewidth = 1, display = display.pane)
 plPOC = plot(showVA ? vaPOC : na, "Point of control", color = color.new(cGold, 0), style = plot.style_linebr, linewidth = 2, display = display.pane)
 // Value glows strongest around the point of control
-fill(plVAH, plPOC, vaHigh, vaPOC, color.new(cPurple, 95), color.new(cPurple, 80), title = "Value area · upper")
-fill(plPOC, plVAL, vaPOC, vaLow, color.new(cPurple, 80), color.new(cPurple, 95), title = "Value area · lower")
+fill(plVAH, plPOC, vaHigh, vaPOC, color.new(cValue, 95), color.new(cValue, 82), title = "Value area · upper")
+fill(plPOC, plVAL, vaPOC, vaLow, color.new(cValue, 82), color.new(cValue, 95), title = "Value area · lower")
 
 color deltaCol = na(deltaPct) ? na : deltaPct >= 0 ? color.from_gradient(deltaPct, 0, 60, color.new(cBull, 65), cBull) : color.from_gradient(deltaPct, -60, 0, cBear, color.new(cBear, 65))
 color eventCol = openedLong ? cBull : openedShort ? cBear : absLongMark ? cCyan : absShortMark ? cMagenta : na
@@ -898,6 +1002,194 @@ if showAbs and absLongMark
 if showAbs and absShortMark
     absFx.push(f_absorbFx(false, aqShort))
 f_trim(absFx, keepAbs)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+//  VISUALS · 14 RESTING LIQUIDITY (swing highs / lows, equal highs / lows, sweeps)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+var array<Level> bslArr  = array.new<Level>()
+var array<Level> sslArr  = array.new<Level>()
+var array<Level> bslDone = array.new<Level>()
+var array<Level> sslDone = array.new<Level>()
+var array<Fx>    sweepFx = array.new<Fx>()
+
+f_lvlName(Level l) =>
+    (l.isHigh ? "BSL · " : "SSL · ") + (l.touches >= 2 ? (l.isHigh ? "Equal Highs ×" : "Equal Lows ×") + str.tostring(l.touches) : (l.isHigh ? "Swing High" : "Swing Low"))
+
+f_addLevel(array<Level> arr, bool isHigh, float px, int bar) =>
+    float tol    = atrV * eqTol
+    color c      = isHigh ? cBear : cBull
+    bool  merged = false
+    int   n      = arr.size()
+    if n > 0
+        for i = 0 to n - 1
+            Level l = arr.get(i)
+            if not merged and math.abs(l.price - px) <= tol
+                merged    := true
+                l.touches := l.touches + 1
+                l.price   := isHigh ? math.max(l.price, px) : math.min(l.price, px)
+                box.set_top(l.bx, l.price + l.half)
+                box.set_bottom(l.bx, l.price - l.half)
+                if not na(l.gl)
+                    box.set_top(l.gl, l.price + l.half * 2.4)
+                    box.set_bottom(l.gl, l.price - l.half * 2.4)
+                if na(l.ln)
+                    l.ln := line.new(l.bar, l.price, bar, l.price, color = color.new(c, 25), style = line.style_dotted, width = 1)
+                else
+                    line.set_xy1(l.ln, l.bar, l.price)
+                    line.set_xy2(l.ln, bar, l.price)
+                label.set_text(l.lb, f_lvlName(l))
+                label.set_y(l.lb, isHigh ? l.price + l.half : l.price - l.half)
+    if not merged
+        float h  = atrV * 0.12
+        Level nl = Level.new(price = px, bar = bar, isHigh = isHigh, touches = 1, half = h)
+        if glowOn
+            nl.gl := box.new(bar, px + h * 2.4, bar_index, px - h * 2.4, border_color = color.new(c, 85), border_width = 3, extend = extend.right, bgcolor = color.new(c, 94))
+        nl.bx := box.new(bar, px + h, bar_index, px - h, border_color = color.new(c, 25), border_width = 1, extend = extend.right, bgcolor = color.new(c, 82))
+        nl.lb := label.new(math.min(bar + 3, bar_index), isHigh ? px + h : px - h, f_lvlName(nl), style = isHigh ? label.style_label_down : label.style_label_up, color = color.new(C_PILL, 15), textcolor = c, size = size.small, tooltip = isHigh ? "Buy-side liquidity: stops and breakout orders resting above this swing high. A natural target for longs." : "Sell-side liquidity: stops resting below this swing low. A natural target for shorts.")
+        arr.push(nl)
+        if arr.size() > maxLiq
+            Level o = arr.shift()
+            o.killLevel()
+    true
+
+// Wick through a level and close back = sweep (level kept as history). Close beyond = level broken (removed).
+f_sweepScan(array<Level> arr, array<Level> done, bool isHigh) =>
+    float bestPx  = na
+    int   bestBar = na
+    color c       = isHigh ? cBear : cBull
+    int   n       = arr.size()
+    if n > 0
+        for i = n - 1 to 0
+            Level l      = arr.get(i)
+            float pen    = isHigh ? high - l.price : l.price - low
+            bool  back   = isHigh ? close < l.price : close > l.price
+            bool  beyond = isHigh ? close > l.price : close < l.price
+            if pen > atrV * 0.03 and back
+                if na(bestPx) or (isHigh ? l.price > bestPx : l.price < bestPx)
+                    bestPx  := l.price
+                    bestBar := l.bar
+                box.set_extend(l.bx, extend.none)
+                box.set_right(l.bx, bar_index)
+                box.set_bgcolor(l.bx, color.new(c, 92))
+                box.set_border_style(l.bx, line.style_dashed)
+                if not na(l.gl)
+                    box.set_extend(l.gl, extend.none)
+                    box.set_right(l.gl, bar_index)
+                if not na(l.lb)
+                    label.delete(l.lb)
+                    l.lb := na
+                if keepSwept == 0
+                    l.killLevel()
+                else
+                    done.push(l)
+                    if done.size() > keepSwept
+                        Level o = done.shift()
+                        o.killLevel()
+                arr.remove(i)
+            else if beyond
+                l.killLevel()
+                arr.remove(i)
+    [bestPx, bestBar]
+
+f_sweepFx(bool bsl, float lvl, int lvlBar) =>
+    Fx    fx     = Fx.new()
+    color c      = bsl ? cBear : cBull
+    float y      = bsl ? high : low
+    bool  absHit = bsl ? absShortMark : absLongMark
+    fx.l1 := line.new(lvlBar, lvl, bar_index, lvl, color = color.new(c, 35), style = line.style_dotted, width = 1)
+    fx.l2 := line.new(bar_index, lvl, bar_index, y, color = color.new(c, 10), style = line.style_solid, width = 2)
+    // When absorption printed on the same candle its footprint already marks it
+    if not absHit
+        if glowOn
+            fx.t1 := label.new(bar_index, y, "", style = label.style_circle, color = color.new(c, 82), size = size.large)
+        fx.t2 := label.new(bar_index, y, "", style = label.style_circle, color = color.new(c, 5), size = size.tiny)
+        fx.t3 := label.new(bar_index, bsl ? y + atrV * 0.35 : y - atrV * 0.35, bsl ? "BSL Swept ⟲" : "SSL Swept ⟲", style = bsl ? label.style_label_down : label.style_label_up, color = color.new(C_PILL, 15), textcolor = c, size = size.small, tooltip = bsl ? "Buy-side liquidity taken: stops above the swing high were run and price closed back below. Watch for buyers being absorbed." : "Sell-side liquidity taken: stops below the swing low were run and price closed back above. Watch for sellers being absorbed.")
+    fx
+
+if showLiq and barstate.isconfirmed and not na(atrV)
+    if not na(ph)
+        f_addLevel(bslArr, true, ph, bar_index - swingLen)
+    if not na(pl)
+        f_addLevel(sslArr, false, pl, bar_index - swingLen)
+    [bPx, bBar] = f_sweepScan(bslArr, bslDone, true)
+    [sPx, sBar] = f_sweepScan(sslArr, sslDone, false)
+    if showSweeps and not na(bPx)
+        sweepFx.push(f_sweepFx(true, bPx, bBar))
+    if showSweeps and not na(sPx)
+        sweepFx.push(f_sweepFx(false, sPx, sBar))
+    f_trim(sweepFx, 6)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+//  VISUALS · 15 INEFFICIENCY CORRIDORS AND IMPULSE CANDLES
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+var array<Gap> gaps      = array.new<Gap>()
+var int        lastGapUp = -1000
+var int        lastGapDn = -1000
+bool  gapUpRaw = low > high[2] and close[1] > open[1] and low - high[2] >= nz(atrV) * ineffMin
+bool  gapDnRaw = high < low[2] and close[1] < open[1] and low[2] - high >= nz(atrV) * ineffMin
+float gapUpBot = high[2]
+float gapDnTop = low[2]
+
+f_gapText(Gap g) =>
+    float pct = g.top > g.bot ? (g.dir == 1 ? g.top - g.fillLvl : g.fillLvl - g.bot) / (g.top - g.bot) : 1.0
+    (g.dir == 1 ? "Inefficiency ▲ · " : "Inefficiency ▼ · ") + (pct >= 0.999 ? "Filled ✓" : pct <= 0.02 ? "Unfilled" : str.tostring(math.round(pct * 100)) + "% filled")
+
+f_newGap(int dir, float top, float bot) =>
+    Gap   g   = Gap.new(top = top, bot = bot, dir = dir, t0 = bar_index, fillLvl = dir == 1 ? top : bot)
+    color c   = dir == 1 ? cCyan : cPurple
+    float pad = atrV * 0.08
+    if glowOn
+        g.gl := box.new(bar_index - 2, top + pad, bar_index, bot - pad, border_color = color.new(c, 85), border_width = 3, extend = extend.right, bgcolor = color.new(c, 100))
+    g.bx := box.new(bar_index - 2, top, bar_index, bot, border_color = color.new(c, 35), border_width = 1, border_style = line.style_dashed, extend = extend.right, bgcolor = color.new(c, 88))
+    g.lb := label.new(bar_index + 2, (top + bot) / 2, f_gapText(g), style = label.style_label_left, color = color.new(C_PILL, 25), textcolor = c, size = size.tiny)
+    g
+
+if showIneff and barstate.isconfirmed
+    int ng = gaps.size()
+    if ng > 0
+        for i = 0 to ng - 1
+            Gap g = gaps.get(i)
+            if g.active and bar_index > g.t0 and g.top > g.bot
+                g.fillLvl := g.dir == 1 ? math.min(g.fillLvl, low) : math.max(g.fillLvl, high)
+                if (g.dir == 1 and g.fillLvl <= g.bot) or (g.dir == -1 and g.fillLvl >= g.top)
+                    g.active := false
+                    box.set_extend(g.bx, extend.none)
+                    box.set_right(g.bx, bar_index)
+                    if not na(g.gl)
+                        box.set_extend(g.gl, extend.none)
+                        box.set_right(g.gl, bar_index)
+                label.set_text(g.lb, f_gapText(g))
+    if gapUpRaw and bar_index - lastGapUp >= 3
+        gaps.push(f_newGap(1, low, gapUpBot))
+        lastGapUp := bar_index
+    if gapDnRaw and bar_index - lastGapDn >= 3
+        gaps.push(f_newGap(-1, gapDnTop, high))
+        lastGapDn := bar_index
+    while gaps.size() > maxIneff
+        Gap o = gaps.shift()
+        o.killGap()
+
+// Impulse: aggression WITH a result (large body, close near the extreme, strong volume)
+var array<Fx> impFx = array.new<Fx>()
+float cBody = math.abs(close - open)
+bool  impUp = close > open and cRange > 0 and cBody >= impMult * nz(atrV) and cBody / cRange >= 0.6 and closePos >= 70 and (na(relVol) or relVol >= 1.2)
+bool  impDn = close < open and cRange > 0 and cBody >= impMult * nz(atrV) and cBody / cRange >= 0.6 and closePos <= 30 and (na(relVol) or relVol >= 1.2)
+
+f_impFx(bool up) =>
+    Fx    fx  = Fx.new()
+    color c   = up ? cBull : cBear
+    int   dur = timeframe.in_seconds() * 1000
+    int   hw  = int(dur * 0.46)
+    float pad = atrV * 0.08
+    if glowOn
+        fx.b1 := box.new(time - hw, high + pad * 2, time + hw, low - pad * 2, xloc = xloc.bar_time, border_color = color.new(c, 72), border_width = 4, bgcolor = color.new(c, 93))
+    fx.b2 := box.new(time - hw, high + pad, time + hw, low - pad, xloc = xloc.bar_time, border_color = color.new(c, 10), border_width = 1, bgcolor = color.new(c, 100))
+    fx.t1 := label.new(bar_index, up ? low - pad * 5 : high + pad * 5, "⚡ Impulse " + f_signed(deltaPct, "0") + "%", style = up ? label.style_label_up : label.style_label_down, color = color.new(c, 78), textcolor = cSilver, size = size.tiny, tooltip = "Impulse candle: body " + str.tostring(cBody / atrV, "0.0") + " ATR, close at " + str.tostring(closePos, "0") + "% of the range, relative volume " + f_num(relVol, "0.0") + "x. Aggression that got a result.")
+    fx
+
+if showImp and barstate.isconfirmed and (impUp or impDn) and not (openedLong or openedShort or absLongMark or absShortMark)
+    impFx.push(f_impFx(impUp))
+    f_trim(impFx, maxImp)
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 //  VISUALS · 10 FOOTPRINT (sellers | buyers per price row, drawn on the most recent candles)
@@ -1096,8 +1388,20 @@ f_zone(int side) =>
 
 float  tgt1     = na
 string tgt1Name = ""
+float  nBSL     = na
+string nBSLName = ""
+float  nSSL     = na
+string nSSLName = ""
 
 if barstate.islast
+    for l in bslArr
+        if l.price > close and (na(nBSL) or l.price < nBSL)
+            nBSL     := l.price
+            nBSLName := l.touches >= 2 ? "Equal Highs" : "BSL"
+    for l in sslArr
+        if l.price < close and (na(nSSL) or l.price > nSSL)
+            nSSL     := l.price
+            nSSLName := l.touches >= 2 ? "Equal Lows" : "SSL"
     while array.size(lbBoxes) > 0
         box.delete(array.pop(lbBoxes))
     while array.size(lbLines) > 0
@@ -1112,9 +1416,9 @@ if barstate.islast
         f_zone(-1)
 
     if showVA and not na(vaHigh)
-        f_tag(bar_index + 17, vaHigh, "VAH  " + str.tostring(vaHigh, fp), cPurple)
+        f_tag(bar_index + 17, vaHigh, "VAH  " + str.tostring(vaHigh, fp), cValue)
         f_tag(bar_index + 17, vaPOC, "POC  " + str.tostring(vaPOC, fp), cGold)
-        f_tag(bar_index + 17, vaLow, "VAL  " + str.tostring(vaLow, fp), cPurple)
+        f_tag(bar_index + 17, vaLow, "VAL  " + str.tostring(vaLow, fp), cValue)
     if showGex
         if callWall > 0
             f_tag(bar_index + 17, callWall, "CALL WALL  " + str.tostring(callWall, fp), cBull)
@@ -1149,6 +1453,9 @@ if barstate.islast
             if callWall > close
                 cPx.push(callWall)
                 cNm.push("Call Wall")
+            if not na(nBSL)
+                cPx.push(nBSL)
+                cNm.push(nBSLName)
         else
             if not na(vaPOC) and vaPOC < close
                 cPx.push(vaPOC)
@@ -1159,6 +1466,9 @@ if barstate.islast
             if putWall > 0 and putWall < close
                 cPx.push(putWall)
                 cNm.push("Put Wall")
+            if not na(nSSL)
+                cPx.push(nSSL)
+                cNm.push(nSSLName)
         array<float> used = array.new<float>()
         int rank = 0
         int nC = cPx.size()
@@ -1200,7 +1510,7 @@ plot(tSide, "Trade side (1 long, -1 short, 0 flat)", display = display.data_wind
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 string D_SIZE  = f_size(panelSizeIn)
 string D_TITLE = panelSizeIn == "Tiny" ? size.small : panelSizeIn == "Small" ? size.normal : size.large
-int    D_ROWS  = 42
+int    D_ROWS  = 46
 var table dash = table.new(f_pos(panelPosIn), 3, D_ROWS, bgcolor = color.new(D_ROW, 6), frame_color = color.new(cCyan, 35), frame_width = 1, border_color = color.new(cCyan, 82), border_width = 1)
 
 f_tc(int c, int r, string txt, color tc, color bg, string ha) =>
@@ -1297,7 +1607,7 @@ if showPanel and barstate.islast
         sub   := lState == 1 ? "Bullish close = first shift" : "Bearish close = first shift"
     else if inZoneNow
         stTxt := bias == 1 ? "IN DISCOUNT" : "IN PREMIUM"
-        stCol := cPurple
+        stCol := cValue
         sub   := bias == 1 ? "Watch for seller absorption" : "Watch for buyer absorption"
     else if bias != 0
         stTxt := bias == 1 ? "VALUE UP" : "VALUE DOWN"
@@ -1335,7 +1645,9 @@ if showPanel and barstate.islast
     r += 1
 
     if full
-        f_head(r, "ORDER FLOW · LAST CANDLE")
+        f_head(r, "ORDER FLOW")
+        r += 1
+        f_meterRow(r, "Flow Pressure", flowShare * 100, f_signed(flowNet * 100, "0") + (flowNet >= 0 ? " buyers" : " sellers"), flowNet >= 0 ? cCyan : cPurple)
         r += 1
         float buyPct = na(deltaPct) ? na : (100 + deltaPct) / 2
         f_meterRow(r, "Buy Aggression", buyPct, na(buyPct) ? "n/a" : str.tostring(buyPct, "0") + "%", cBull)
@@ -1388,13 +1700,17 @@ if showPanel and barstate.islast
         bool zs = bias == -1 and sZoneReady
         f_head(r, "KEY LEVELS")
         r += 1
-        f_kv(r, "Value Area", na(vaLow) ? "building…" : str.tostring(vaLow, fp) + "  –  " + str.tostring(vaHigh, fp), cPurple)
+        f_kv(r, "Value Area", na(vaLow) ? "building…" : str.tostring(vaLow, fp) + "  –  " + str.tostring(vaHigh, fp), cValue)
         r += 1
         f_kv(r, "Point of Control", na(vaPOC) ? "—" : str.tostring(vaPOC, fp), cGold)
         r += 1
         f_kv(r, zl ? "Discount Zone" : zs ? "Premium Zone" : "Zone", zl ? str.tostring(lz3, fp) + "  –  " + str.tostring(lz1, fp) : zs ? str.tostring(sz1, fp) + "  –  " + str.tostring(sz3, fp) : "no valid zone", zl ? cBull : zs ? cBear : cGrey)
         r += 1
         f_kv(r, "Invalidation", zl ? str.tostring(lz3, fp) : zs ? str.tostring(sz3, fp) : "—", zl or zs ? cAmber : cGrey)
+        r += 1
+        f_kv(r, "Buy-Side Liquidity", na(nBSL) ? "—" : str.tostring(nBSL, fp) + "  ·  " + nBSLName, cBear)
+        r += 1
+        f_kv(r, "Sell-Side Liquidity", na(nSSL) ? "—" : str.tostring(nSSL, fp) + "  ·  " + nSSLName, cBull)
         r += 1
         f_kv(r, bias == -1 ? "Next Target ↓" : "Next Target ↑", na(tgt1) ? "—" : str.tostring(tgt1, fp) + "  ·  " + tgt1Name, bias == -1 ? cMagenta : cCyan)
         r += 1
