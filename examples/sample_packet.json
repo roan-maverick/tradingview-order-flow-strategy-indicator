@@ -4,7 +4,13 @@
   "symbol": "CME_MINI:MNQ1!",
   "timeframe": "5",
   "time": "2026-11-13T14:55:00Z",
-  "price": {"open": 21446.0, "high": 21461.25, "low": 21441.5, "close": 21458.75, "volume": 28410},
+  "price": {
+    "open": 21446.0,
+    "high": 21461.25,
+    "low": 21441.5,
+    "close": 21458.75,
+    "volume": 28410
+  },
   "environment": {
     "window_open": true,
     "structure": "VALUE_UP",
@@ -22,8 +28,26 @@
     "poc": 21522.0,
     "value_area_low": 21480.0,
     "position": "DISCOUNT",
-    "long_zone": {"ready": true, "in_zone": true, "top": 21467.25, "mid": 21447.5, "bottom": 21423.0, "leg_high": 21640.0, "leg_low": 21395.0, "zone_volume": "THIN"},
-    "short_zone": {"ready": false, "in_zone": false, "bottom": null, "mid": null, "top": null, "leg_low": null, "leg_high": null, "zone_volume": "UNKNOWN"}
+    "long_zone": {
+      "ready": true,
+      "in_zone": true,
+      "top": 21467.25,
+      "mid": 21447.0,
+      "bottom": 21423.0,
+      "leg_high": 21640.0,
+      "leg_low": 21395.0,
+      "zone_volume": "THIN"
+    },
+    "short_zone": {
+      "ready": false,
+      "in_zone": false,
+      "bottom": null,
+      "mid": null,
+      "top": null,
+      "leg_low": null,
+      "leg_high": null,
+      "zone_volume": "UNKNOWN"
+    }
   },
   "order_flow": {
     "delta_pct": 28.4,
@@ -34,19 +58,29 @@
     "sellers_absorbed": false,
     "buyers_absorbed": false,
     "long_state": "IDLE",
-    "short_state": "IDLE"
+    "short_state": "IDLE",
+    "source": "ESTIMATED_LTF",
+    "buyer_imbalance": false,
+    "seller_imbalance": false
   },
-  "risk": {"trades_today": 1, "max_trades": 2, "loss_streak": 0, "max_loss_streak": 2},
+  "risk": {
+    "trades_today": 1,
+    "max_trades": 2,
+    "loss_streak": 0,
+    "max_loss_streak": 2
+  },
   "trade": {
     "side": "LONG",
     "status": "ACTIVE",
     "open": true,
     "entry": 21458.75,
     "stop": 21440.25,
-    "target": 21522.0,
-    "target_source": "POC",
+    "target": 21640.0,
+    "target_source": "SWING",
     "risk_per_unit": 18.5,
     "reclaim_level": 21480.0,
-    "bars_since_entry": 0
+    "bars_since_entry": 0,
+    "trailing": false,
+    "trail_trigger": 21486.5
   }
 }

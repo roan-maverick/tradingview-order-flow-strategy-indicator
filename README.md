@@ -17,7 +17,7 @@ Open source · MIT license · Pine Script v6 · No repainting · Any market with
  balance on 1h & 4h        Premium above VAH           hit hard at the low,         Get back into value
                                                        no result                    or stop to entry
  Gamma regime:             Fibonacci zone              First shift: bullish close   Target: POC or swing
- expansion or chop         0.705 · 0.786 · 0.886       Second failure: sellers      Max 2 trades a day
+ expansion or chop         0.705 · 0.788 · 0.886       Second failure: sellers      Max 2 trades a day
                            outside value               fail again, higher           Stop after 2 losses
                                                        ENTER on the flip
 ```
@@ -26,9 +26,23 @@ Full explanation: **[docs/STRATEGY.md](docs/STRATEGY.md)**
 
 ---
 
+## Two editions
+
+| | Standard | Pro |
+|---|---|---|
+| File | [order-flow-strategy.pine](order-flow-strategy.pine) | [order-flow-strategy-pro.pine](order-flow-strategy-pro.pine) |
+| TradingView plan | Any, including free | **Premium or Ultimate** |
+| Order flow | Estimated from 1-minute candles inside each candle | **Real bid × ask volume footprint** (`request.footprint()`): real buy and sell volume per price row, the candle's real point of control, diagonal **400% imbalances** |
+| Flip candle | Aggressive close with positive delta | Same, plus the buyers must **light up imbalances** (like the bold numbers on his footprint) |
+| Everything else | Identical | Identical |
+
+TradingView only lets Premium and Ultimate accounts compile scripts that read footprint data, so the two editions are separate files. The Pro file is generated from the Standard one (`python3 tools/build_pro.py`); bars without footprint data fall back to the estimate.
+
+---
+
 ## Install (2 minutes)
 
-1. Open **[order-flow-strategy.pine](order-flow-strategy.pine)** and copy all of it.
+1. Open **[order-flow-strategy.pine](order-flow-strategy.pine)** (or **[order-flow-strategy-pro.pine](order-flow-strategy-pro.pine)** on a Premium or Ultimate plan) and copy all of it.
 2. In TradingView, open the **Pine Editor** at the bottom of the chart.
 3. Delete the default code, paste, click **Save**, then **Add to chart**.
 4. Use a **5-minute chart** (1 to 15 minutes works). The default window is the first 90 minutes after the New York open. For crypto, you can switch it to 24/7 in the settings.
@@ -60,8 +74,8 @@ The indicator works on the free TradingView plan. Only the webhook alerts for AI
 
 9. **Value reclaim checkpoint.** Price should get back into the value area. If it does not within 6 candles, the stop moves to entry.
 10. **Breakeven.** At +1R the stop moves to entry.
-11. **Target.** The point of control or the last swing high, whichever is nearer and at least 1.5R away.
-12. **Daily limits.** After 2 trades, or 2 losses in a row, the dashboard shows *DONE FOR TODAY* or *STOPPED FOR TODAY*. Every closed trade gets an outcome tag: **✔ TARGET**, **✕ STOPPED** or **● BREAKEVEN** with the result in R.
+11. **Target and trail.** The full target is the last swing high, where resting orders cluster (the POC if the swing is too close). Once price reaches the POC, the call wall or +1.5R on the way, the stop starts **trailing behind every aggressive buying candle** that gets a result, and never moves back. The gold line on the chart is the live stop.
+12. **Daily limits.** After 2 trades, or 2 losses in a row, the dashboard shows *DONE FOR TODAY* or *STOPPED FOR TODAY*. Every closed trade gets an outcome tag: **✔ TARGET**, **✔ TRAILED**, **✕ STOPPED** or **● BREAKEVEN** with the result in R.
 
 Shorts work exactly the same in reverse.
 
@@ -80,13 +94,14 @@ Dark navy tags with neon text, layered glow on every zone, and one color languag
 | **⚡ Impulse candles** | Glowing outline on aggression that got a result (large body, close near the extreme, strong volume). The opposite of absorption |
 | **Footprint on the candles** | The most recent candles are split into price rows: **sellers on the left, buyers on the right**, shaded by how much volume traded there. Bright cyan or magenta cells are **imbalances** (one side 4x the other, the 400% rule). The **gold outline** is the candle's own point of control. A **Δ tag** under each candle shows its delta. Zoom in to read the numbers |
 | **Indigo glowing band + gold line** | Value area (VAH to VAL), brightest around the point of control, with VAH, POC and VAL tags on the right |
-| **Discount / premium zone** | Glowing green or red zone on the impulse leg with 0.705, 0.786 and ✕ 0.886 tags, a dotted leg anchor line and a tag showing the zone volume (thin, untested or normal) |
+| **Discount / premium zone** | Glowing green or red zone on the impulse leg with 0.705, 0.788 and ✕ 0.886 tags, a dotted leg anchor line and a tag showing the zone volume (thin, untested or normal) |
 | **Absorption circles** | Cyan circle at the low (sellers absorbed) or magenta circle at the high (buyers absorbed), with delta and absorption quality |
 | **Small squares** | First shift: the first close against the absorbed side |
 | **▲ LONG / ▼ SHORT · 2nd Failure** | Entries, with a glowing outline on the entry candle, a momentum trail from the second failure, the reward to risk and a tooltip explaining the trade |
 | **Trapped Sellers / Trapped Buyers ⚠** | The price band where the absorbed side got trapped. Their forced exits fuel the move |
-| **Risk and reward boxes** | Entry to stop in red, entry to target in green. A dashed gold line appears when the stop moves to entry |
-| **Outcome tags** | ✔ TARGET, ✕ STOPPED or ● BREAKEVEN with the result in R |
+| **Risk and reward boxes** | Entry to stop in red, entry to target in green |
+| **Live stop line** | Red at the original stop, gold once it is at entry or trailing behind aggression |
+| **Outcome tags** | ✔ TARGET, ✔ TRAILED, ✕ STOPPED or ● BREAKEVEN with the result in R |
 | **Target fields** | To the right of price. With a trade open: the target, with the distance and R still to go. When flat: T1 / T2 in the direction of the structure (POC, last swing, nearest liquidity zone, call or put wall) |
 | **ENTRY / STOP tags** | Live levels of the open trade |
 | **Cyan tint** | The active trade window (first 90 minutes of the New York open by default) |
@@ -117,12 +132,16 @@ Full or Compact mode, six positions, three text sizes. Meters, the MTF section a
 | Structure timeframes | 1h and 4h | The higher timeframes that define value up or down |
 | Gamma regime, walls, flip | Not set | Enter from your GEX provider before the open |
 | Value area | Developing (current session) | Or the prior session's value area |
-| Zone levels | 0.705 / 0.786 / 0.886 | The Fibonacci zone |
+| Session length | Daily | Or weekly, or **cash session** (regular trading hours only, 09:30-16:00 New York): pair it with *Prior session* to trade the open against yesterday's cash value |
+| Zone levels | 0.705 / 0.788 / 0.886 | The Fibonacci zone, with the levels he names |
 | Zone must sit outside value | On | Turn off to allow zones that overlap value |
 | Order flow timeframe | Auto | The lower timeframe used to estimate delta |
 | Absorption thresholds | 15% delta, POC in outer 35%, close 30% off the extreme | How strict absorption is |
 | Volume filter | 1.0x average | Or an absolute number, for example 20,000 for MNQ 5-minute |
-| Target | Auto (POC, swing, R) | Or POC only, swing only, or a fixed R |
+| Target | Swing (trail near POC / walls) | Or nearest of POC and swing, POC only, swing only, or a fixed R |
+| Trail the stop behind aggression | On, starts at POC / wall / 1.5R | The stop follows every aggressive candle once trailing starts |
+| Footprint row size (Pro) | Auto | Ticks per footprint row: NQ 4, ES 1, BTC about $10 |
+| Flip candle must light up imbalances (Pro) | On | Requires real buy (or sell) imbalances on the entry candle |
 | Minimum reward | 1.5R | Targets closer than this are replaced by 1.5R |
 | Footprint candles / rows | 12 / 6 | How many recent candles get footprint cells, and how many price rows each |
 | Pressure wave | On, 21 core, 8 candles, 1.2 ATR | The cyan / purple bands through the candles |
@@ -193,7 +212,7 @@ Packet fields: **[docs/PACKET_SCHEMA.md](docs/PACKET_SCHEMA.md)** · Agent promp
 No. Setups, entries and trade tracking use closed candles only. Higher-timeframe structure uses only closed higher-timeframe bars, and swing points never move once confirmed.
 
 **Is this real order flow?**
-It is the closest Pine Script allows. TradingView does not give scripts tick-level bid and ask data, so the footprint, delta and the volume point of control inside each candle are estimated from lower-timeframe candles: volume on up candles counts as buying, volume on down candles as selling, spread across the price rows each one traded through. Imbalances compare buyers and sellers in the same row. It reads the same story as an exchange footprint, at lower resolution.
+In the **Pro edition, yes**: it reads TradingView's volume footprint, so delta, the candle's point of control and the imbalances come from real bid × ask volume. The **Standard edition** estimates them from lower-timeframe candles (volume on up candles counts as buying, on down candles as selling), because TradingView only gives footprint data to Premium and Ultimate plans. It reads the same story at lower resolution. The dashboard's *Data* row always tells you which one you are looking at.
 
 **I can't see the footprint numbers.**
 Zoom in on the last candles. The cells are drawn inside each candle's width, so the numbers appear once the candles are wide enough. The footprint needs a chart timeframe above 1 minute (it reads 1-minute candles inside a 5-minute chart).
@@ -216,7 +235,9 @@ No. It produces setups, levels and data. You decide.
 
 ```
 tradingview-order-flow-strategy-indicator/
-├── order-flow-strategy.pine      the indicator (Pine Script v6)
+├── order-flow-strategy.pine      the indicator, Standard edition (any plan)
+├── order-flow-strategy-pro.pine  Pro edition: real volume footprint (Premium / Ultimate)
+├── tools/build_pro.py            builds the Pro file from the Standard one
 ├── docs/STRATEGY.md              the full strategy, step by step
 ├── docs/SPECIFICATION.md         every calculation and rule
 ├── docs/PACKET_SCHEMA.md         every field in the JSON packet

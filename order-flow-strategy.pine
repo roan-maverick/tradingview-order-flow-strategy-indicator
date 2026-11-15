@@ -9,11 +9,12 @@
 //  ───────────────────────────────────────────────────────────────────────────────────────────────
 //   1. ENVIRONMENT    Higher-timeframe value structure (value up / value down / balance) + gamma regime
 //   2. LOCATION       Value area (VAH / POC / VAL) and a Fibonacci discount or premium zone
-//                     (0.705 / 0.786 / 0.886) that sits outside value
+//                     (0.705 / 0.788 / 0.886) that sits outside value
 //   3. CONFIRMATION   Absorption (aggression with no result at the candle extreme), a first shift,
 //                     then the aggressive side fails a SECOND time, higher (or lower): enter
-//   4. MANAGEMENT     Stop beyond the failure, value reclaim checkpoint, target at POC or swing,
-//                     breakeven rules, max trades per day, stop after consecutive losses
+//   4. MANAGEMENT     Stop beyond the failure, value reclaim checkpoint, full target at the last swing,
+//                     stop trailing behind the aggression from the POC / gamma wall, breakeven rules,
+//                     max trades per day, stop after consecutive losses
 //
 //  MODULES
 //  ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ const string G_AGT = "14 · AI Agent Packet"
 const string MODE_NY  = "New York open (first 90 min)"
 const string MODE_CUS = "Custom session"
 const string MODE_ALL = "Always (24/7)"
+const string TGT_SWING = "Swing (trail near POC / walls)"
 
 // ── 00 General
 bool   glowOn        = input.bool(true, "Layered glow effects", group = G_GEN, display = display.none)
@@ -99,14 +101,16 @@ bool   skipPosGamma  = input.bool(false, "Skip setups in positive gamma", group 
 
 // ── 04 Location
 string vaSource      = input.string("Developing (current session)", "Value area", options = ["Developing (current session)", "Prior session"], group = G_LOC, display = display.none, tooltip = "Discount is below the value area low, premium above the value area high. Developing uses the value built so far in the current session (for example Asia and London before the New York open). Prior uses the last completed session.")
-string profilePeriod = input.string("Daily", "Session length", options = ["Daily", "Weekly"], group = G_LOC, display = display.none)
+string profilePeriod = input.string("Daily", "Session length", options = ["Daily", "Weekly", "Cash session (RTH)"], group = G_LOC, display = display.none, tooltip = "Daily or weekly profiles use every candle. Cash session builds value only from regular trading hours (09:30-16:00 New York by default): pair it with 'Prior session' to trade the open against yesterday's cash value.")
+string cashSess      = input.session("0930-1600", "Cash session hours", group = G_LOC, display = display.none)
+string cashTz        = input.string("America/New_York", "Cash session timezone", group = G_LOC, display = display.none)
 float  vaPct         = input.float(70, "Value area %", minval = 50, maxval = 90, group = G_LOC, display = display.none)
 float  rowAtr        = input.float(0.5, "Profile row height (x ATR)", minval = 0.1, maxval = 3, step = 0.1, group = G_LOC, display = display.none)
 int    minDevBars    = input.int(12, "Developing value: minimum bars", minval = 2, maxval = 200, group = G_LOC, display = display.none)
 int    swingLen      = input.int(5, "Swing strength (bars each side)", minval = 2, maxval = 20, group = G_LOC, display = display.none)
 int    legLookback   = input.int(60, "Impulse leg lookback (bars)", minval = 10, maxval = 300, group = G_LOC, display = display.none)
 float  fibA          = input.float(0.705, "Zone level 1", step = 0.001, group = G_LOC, display = display.none)
-float  fibB          = input.float(0.786, "Zone level 2", step = 0.001, group = G_LOC, display = display.none)
+float  fibB          = input.float(0.788, "Zone level 2", step = 0.001, group = G_LOC, display = display.none)
 float  fibC          = input.float(0.886, "Zone level 3 (invalidation)", step = 0.001, group = G_LOC, display = display.none)
 bool   needOutsideVA = input.bool(true, "Zone must sit outside the value area", group = G_LOC, display = display.none)
 bool   needInternal  = input.bool(true, "Require an internal swing inside the leg", group = G_LOC, display = display.none)
@@ -129,7 +133,9 @@ float  partAbs       = input.float(20000, "Absolute: minimum volume per candle",
 // ── 07 Stops and targets
 string stopAnchor    = input.string("Second failure", "Stop beyond", options = ["Second failure", "First absorption"], group = G_TRD, display = display.none)
 float  stopBufAtr    = input.float(0.1, "Stop buffer (x ATR)", minval = 0, step = 0.05, group = G_TRD, display = display.none)
-string targetMode    = input.string("Auto (POC, swing, R)", "Target", options = ["Auto (POC, swing, R)", "Value area POC", "Last swing", "Fixed R"], group = G_TRD, display = display.none)
+string targetMode    = input.string(TGT_SWING, "Target", options = [TGT_SWING, "Auto (POC, swing, R)", "Value area POC", "Last swing", "Fixed R"], group = G_TRD, display = display.none, tooltip = "Swing: the full target is the last swing point (where resting orders cluster). If the swing is closer than the minimum reward, the POC is used, then the minimum R.")
+bool   trailOn       = input.bool(true, "Trail the stop behind aggression", group = G_TRD, display = display.none, tooltip = "Once price reaches the POC or a gamma wall on the way to the target (or the R below, whichever comes first), the stop moves behind every candle where the trade's side is aggressive and gets a result. It never moves backwards.")
+float  trailStartR   = input.float(1.5, "Start trailing at (R) if no POC / wall comes first", minval = 0.1, step = 0.1, group = G_TRD, display = display.none)
 float  minR          = input.float(1.5, "Minimum reward (R)", minval = 0.5, step = 0.1, group = G_TRD, display = display.none)
 float  fixedR        = input.float(2.0, "Fixed R target", minval = 0.5, step = 0.1, group = G_TRD, display = display.none)
 int    reclaimBars   = input.int(6, "Bars to get back into value before breakeven", minval = 1, maxval = 50, group = G_TRD, display = display.none)
@@ -423,7 +429,11 @@ f_va(map<int, float> m, int k0, int k1, float stp) =>
             acc += vDn
     [(pocK + 0.5) * stp, (upK + 1) * stp, dnK * stp, maxV]
 
-bool newProfile = profilePeriod == "Daily" ? timeframe.change("D") : timeframe.change("W")
+bool useCash      = profilePeriod == "Cash session (RTH)"
+bool inCash       = not na(time(timeframe.period, cashSess, cashTz))
+bool cashStart    = inCash and not inCash[1]
+bool newProfile   = useCash ? cashStart : profilePeriod == "Daily" ? timeframe.change("D") : timeframe.change("W")
+bool addToProfile = not useCash or inCash
 
 var map<int, float> devMap   = map.new<int, float>()
 var map<int, float> priorMap = map.new<int, float>()
@@ -458,7 +468,7 @@ if newProfile or na(devStep)
     devBars := 0
 
 // Add this candle's volume, spread evenly across the rows it traded through
-if not na(volume) and volume > 0 and devStep > 0
+if addToProfile and not na(volume) and volume > 0 and devStep > 0
     int kLo = math.floor(low / devStep)
     int kHi = math.max(kLo, math.min(kLo + 300, math.floor(high / devStep)))
     float share = volume / (kHi - kLo + 1)
@@ -466,7 +476,8 @@ if not na(volume) and volume > 0 and devStep > 0
         map.put(devMap, k, nz(map.get(devMap, k)) + share)
     devMinK := na(devMinK) ? kLo : math.min(devMinK, kLo)
     devMaxK := na(devMaxK) ? kHi : math.max(devMaxK, kHi)
-devBars += 1
+if addToProfile
+    devBars += 1
 
 float dPOC = na
 float dVAH = na
@@ -595,12 +606,27 @@ string ltf      = ltfIn == "Auto" ? ltfAuto : ltfIn
 bool   useLtf   = ltf != "" and timeframe.in_seconds(ltf) < chartSec
 [aSigned, aVol, aMid, aHi, aLo] = request.security_lower_tf(syminfo.tickerid, useLtf ? ltf : timeframe.period, f_flow())
 
-float barDelta = useLtf and array.size(aSigned) > 0 ? array.sum(aSigned) : (close > open ? volume : close < open ? -volume : 0.0)
-float barVol   = useLtf and array.size(aVol) > 0 ? array.sum(aVol) : volume
-float deltaPct = barVol > 0 ? barDelta / barVol * 100 : na
-float volPoc   = hl2
-if useLtf and array.size(aVol) > 0
+// @@FOOTPRINT_SOURCE_BEGIN
+// Standard edition: order flow is estimated from lower-timeframe candles (works on every TradingView plan).
+// tools/build_pro.py swaps this block for request.footprint() to build the Pro edition (Premium / Ultimate plans).
+bool   fpOk      = false   // real footprint data on this bar
+float  fpDelta   = na
+float  fpVol     = na
+float  fpPocMid  = na
+bool   fpBuyImb  = false   // the candle has at least one buy imbalance
+bool   fpSellImb = false   // the candle has at least one sell imbalance
+bool   needImb   = false   // flip candle must show imbalances (Pro edition)
+// @@FOOTPRINT_SOURCE_END
+
+float  barDelta = fpOk ? fpDelta : useLtf and array.size(aSigned) > 0 ? array.sum(aSigned) : (close > open ? volume : close < open ? -volume : 0.0)
+float  barVol   = fpOk ? fpVol : useLtf and array.size(aVol) > 0 ? array.sum(aVol) : volume
+float  deltaPct = barVol > 0 ? barDelta / barVol * 100 : na
+float  volPoc   = hl2
+if fpOk and not na(fpPocMid)
+    volPoc := fpPocMid
+else if useLtf and array.size(aVol) > 0
     volPoc := array.get(aMid, array.indexof(aVol, array.max(aVol)))
+string ofSource = fpOk ? "REAL_FOOTPRINT" : useLtf ? "ESTIMATED_LTF" : "ESTIMATED_CHART"
 float cRange   = high - low
 float pocPos   = cRange > 0 ? (volPoc - low) / cRange * 100 : 50.0
 float closePos = cRange > 0 ? (close - low) / cRange * 100 : 50.0
@@ -613,8 +639,12 @@ bool  partOk = partMode == "Off" ? true : partMode == "Absolute" ? volume >= par
 // Absorption: heavy aggression at the candle's extreme that produced no result
 bool sellerAbsorbed = deltaPct <= -absDelta and pocPos <= absPocZone and closePos >= noResultPct
 bool buyerAbsorbed  = deltaPct >= absDelta and pocPos >= 100 - absPocZone and closePos <= 100 - noResultPct
-bool buyersStep     = close > open and deltaPct >= shiftDelta
-bool sellersStep    = close < open and deltaPct <= -shiftDelta
+// Aggression that gets a result (used for the flip entry and for trailing)
+bool buyersPush     = close > open and deltaPct >= shiftDelta
+bool sellersPush    = close < open and deltaPct <= -shiftDelta
+// Flip candle: with real footprint data, buyers lifting the offer must also light up imbalances
+bool buyersStep     = buyersPush and (not needImb or not fpOk or fpBuyImb)
+bool sellersStep    = sellersPush and (not needImb or not fpOk or fpSellImb)
 
 // Absorption quality 0-100 (display only): how strongly each absorption rule is met
 float relVolQ = na(relVol) ? 0.5 : f_clamp(relVol / 2, 0, 1)
@@ -644,6 +674,8 @@ var bool   tReclaimed = false
 var bool   tBE      = false
 var int    tBar     = na
 var string tTargetSrc = "NONE"
+var bool   tTrail   = false
+var float  tTrailTrig = na
 
 // Long setup state: 0 idle, 1 absorption seen, 2 first shift (waiting for the second failure)
 var int   lState = 0
@@ -687,10 +719,15 @@ f_target(int side, float entry, float risk) =>
         bool ok = side * (vaPOC - entry) >= minDist
         t   := ok ? vaPOC : fallback
         src := ok ? "POC" : "R"
-    else if targetMode == "Last swing"
-        bool ok = side * (swingT - entry) >= minDist
-        t   := ok ? swingT : fallback
-        src := ok ? "SWING" : "R"
+    else if targetMode == "Last swing" or targetMode == TGT_SWING
+        bool ok    = side * (swingT - entry) >= minDist
+        bool pocOk = side * (vaPOC - entry) >= minDist
+        if targetMode == TGT_SWING and not ok and pocOk
+            t   := vaPOC
+            src := "POC"
+        else
+            t   := ok ? swingT : fallback
+            src := ok ? "SWING" : "R"
     else
         float c1 = side * (vaPOC - entry) >= minDist ? vaPOC : na
         float c2 = side * (swingT - entry) >= minDist ? swingT : na
@@ -708,6 +745,17 @@ f_target(int side, float entry, float risk) =>
             src := pocNearer ? "POC" : "SWING"
     [t, src]
 
+// Where trailing starts: the first of the POC, the gamma wall (both only if between entry and target) and the start R
+// (never later than 75% of the way to the target)
+f_trailTrig(int side, float entry, float risk, float target) =>
+    float t    = entry + side * math.min(trailStartR * risk, 0.75 * math.abs(target - entry))
+    float wall = side == 1 ? callWall : putWall
+    if not na(vaPOC) and side * (vaPOC - entry) > 0 and side * (target - vaPOC) > 0 and side * (vaPOC - t) < 0
+        t := vaPOC
+    if wall > 0 and side * (wall - entry) > 0 and side * (target - wall) > 0 and side * (wall - t) < 0
+        t := wall
+    t
+
 if barstate.isconfirmed
     string statusBefore = tStatus
     // 1) Manage the open trade
@@ -715,7 +763,7 @@ if barstate.isconfirmed
         bool closed = false
         if tSide == 1
             if low <= tStop
-                tStatus := tBE ? "BREAKEVEN" : "STOPPED"
+                tStatus := tStop > tEntry ? "TRAIL_STOP" : tBE or tStop == tEntry ? "BREAKEVEN" : "STOPPED"
                 closed  := true
             else if high >= tTarget
                 tStatus := "TARGET_HIT"
@@ -725,16 +773,22 @@ if barstate.isconfirmed
                     tReclaimed := true
                     tStatus := "VALUE_RECLAIMED"
                 if not tBE and beAtR > 0 and high >= tEntry + beAtR * tRisk
-                    tStop := tEntry
+                    tStop := math.max(tStop, tEntry)
                     tBE := true
                     tStatus := "STOP_AT_ENTRY"
                 if not tBE and not tReclaimed and bar_index - tBar >= reclaimBars
-                    tStop := tEntry
+                    tStop := math.max(tStop, tEntry)
                     tBE := true
                     tStatus := "NO_RECLAIM_STOP_AT_ENTRY"
+                if trailOn and not tTrail and high >= tTrailTrig
+                    tTrail  := true
+                    tStatus := "TRAILING"
+                if tTrail and buyersPush and low - stopBufAtr * atrV > tStop
+                    tStop   := low - stopBufAtr * atrV
+                    tStatus := "TRAILING"
         else
             if high >= tStop
-                tStatus := tBE ? "BREAKEVEN" : "STOPPED"
+                tStatus := tStop < tEntry ? "TRAIL_STOP" : tBE or tStop == tEntry ? "BREAKEVEN" : "STOPPED"
                 closed  := true
             else if low <= tTarget
                 tStatus := "TARGET_HIT"
@@ -744,13 +798,19 @@ if barstate.isconfirmed
                     tReclaimed := true
                     tStatus := "VALUE_RECLAIMED"
                 if not tBE and beAtR > 0 and low <= tEntry - beAtR * tRisk
-                    tStop := tEntry
+                    tStop := math.min(tStop, tEntry)
                     tBE := true
                     tStatus := "STOP_AT_ENTRY"
                 if not tBE and not tReclaimed and bar_index - tBar >= reclaimBars
-                    tStop := tEntry
+                    tStop := math.min(tStop, tEntry)
                     tBE := true
                     tStatus := "NO_RECLAIM_STOP_AT_ENTRY"
+                if trailOn and not tTrail and low <= tTrailTrig
+                    tTrail  := true
+                    tStatus := "TRAILING"
+                if tTrail and sellersPush and high + stopBufAtr * atrV < tStop
+                    tStop   := high + stopBufAtr * atrV
+                    tStatus := "TRAILING"
         if closed
             float exitPx = tStatus == "TARGET_HIT" ? tTarget : tStop
             exitR       := tRisk > 0 ? tSide * (exitPx - tEntry) / tRisk : na
@@ -759,7 +819,7 @@ if barstate.isconfirmed
             tSide := 0
             if tStatus == "STOPPED"
                 lossStreak += 1
-            else if tStatus == "TARGET_HIT"
+            else if tStatus == "TARGET_HIT" or tStatus == "TRAIL_STOP"
                 lossStreak := 0
 
     bool rulesOk = inWindow and tradesToday < maxTrades and lossStreak < maxLossStreak and tSide == 0 and partOk and gammaOk
@@ -811,6 +871,8 @@ if barstate.isconfirmed
             [lt, lts] = f_target(1, close, close - stopLvl)
             tTarget := lt
             tTargetSrc := lts
+            tTrail     := false
+            tTrailTrig := f_trailTrig(1, close, close - stopLvl, lt)
             tReclaim := vaLow
             tReclaimed := na(vaLow) or close > vaLow
             tBE     := false
@@ -865,6 +927,8 @@ if barstate.isconfirmed
             [st, sts] = f_target(-1, close, stopLvl - close)
             tTarget := st
             tTargetSrc := sts
+            tTrail     := false
+            tTrailTrig := f_trailTrig(-1, close, stopLvl - close, st)
             tReclaim := vaHigh
             tReclaimed := na(vaHigh) or close < vaHigh
             tBE     := false
@@ -899,11 +963,11 @@ f_packet() =>
     pk += ',"location":{"value_area_high":' + f_num(vaHigh, fp) + ',"poc":' + f_num(vaPOC, fp) + ',"value_area_low":' + f_num(vaLow, fp) + ',"position":"' + valuePos + '"'
     pk += ',"long_zone":{"ready":' + f_bool(lZoneReady) + ',"in_zone":' + f_bool(longLoc) + ',"top":' + f_num(lz1, fp) + ',"mid":' + f_num(lz2, fp) + ',"bottom":' + f_num(lz3, fp) + ',"leg_high":' + f_num(lH, fp) + ',"leg_low":' + f_num(lL, fp) + ',"zone_volume":"' + lZoneVol + '"}'
     pk += ',"short_zone":{"ready":' + f_bool(sZoneReady) + ',"in_zone":' + f_bool(shortLoc) + ',"bottom":' + f_num(sz1, fp) + ',"mid":' + f_num(sz2, fp) + ',"top":' + f_num(sz3, fp) + ',"leg_low":' + f_num(sL, fp) + ',"leg_high":' + f_num(sH, fp) + ',"zone_volume":"' + sZoneVol + '"}}'
-    pk += ',"order_flow":{"delta_pct":' + f_num(deltaPct, "#.#") + ',"volume_poc_position_pct":' + f_num(pocPos, "#.#") + ',"close_position_pct":' + f_num(closePos, "#.#") + ',"relative_volume":' + f_num(relVol, "#.##") + ',"participation_ok":' + f_bool(partOk)
+    pk += ',"order_flow":{"delta_pct":' + f_num(deltaPct, "#.#") + ',"volume_poc_position_pct":' + f_num(pocPos, "#.#") + ',"close_position_pct":' + f_num(closePos, "#.#") + ',"relative_volume":' + f_num(relVol, "#.##") + ',"participation_ok":' + f_bool(partOk) + ',"source":"' + ofSource + '","buyer_imbalance":' + f_bool(fpOk and fpBuyImb) + ',"seller_imbalance":' + f_bool(fpOk and fpSellImb)
     pk += ',"sellers_absorbed":' + f_bool(sellerAbsorbed) + ',"buyers_absorbed":' + f_bool(buyerAbsorbed) + ',"long_state":"' + lStateStr + '","short_state":"' + sStateStr + '"}'
     pk += ',"risk":{"trades_today":' + str.tostring(tradesToday) + ',"max_trades":' + str.tostring(maxTrades) + ',"loss_streak":' + str.tostring(lossStreak) + ',"max_loss_streak":' + str.tostring(maxLossStreak) + '}'
     pk += ',"trade":{"side":"' + tSideStr + '","status":"' + tStatus + '","open":' + f_bool(tSide != 0) + ',"entry":' + f_num(tEntry, fp) + ',"stop":' + f_num(tStop, fp) + ',"target":' + f_num(tTarget, fp) + ',"target_source":"' + tTargetSrc + '"'
-    pk += ',"risk_per_unit":' + f_num(tRisk, fp) + ',"reclaim_level":' + f_num(tReclaim, fp) + ',"bars_since_entry":' + (na(tBar) ? "null" : str.tostring(bar_index - tBar)) + '}'
+    pk += ',"risk_per_unit":' + f_num(tRisk, fp) + ',"reclaim_level":' + f_num(tReclaim, fp) + ',"bars_since_entry":' + (na(tBar) ? "null" : str.tostring(bar_index - tBar)) + ',"trailing":' + f_bool(tTrail) + ',"trail_trigger":' + f_num(tTrailTrig, fp) + '}'
     pk += '}'
     pk
 
@@ -1201,23 +1265,29 @@ int fpRows = math.max(2, math.min(footRows, int(math.floor(340.0 / (2 * footBars
 f_drawFoot(int n) =>
     float stp = (high - low) / n
     int   cnt = array.size(aVol)
-    if stp > 0 and cnt > 0
+    if stp > 0 and (cnt > 0 or fpOk)
         array<float> buyR  = array.new<float>(n, 0.0)
         array<float> sellR = array.new<float>(n, 0.0)
-        for j = 0 to cnt - 1
-            float v   = nz(array.get(aVol, j))
-            float sgn = nz(array.get(aSigned, j))
-            int   r0  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aLo, j), low) - low) / stp)))
-            int   r1  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aHi, j), high) - low) / stp)))
-            float share = v / (r1 - r0 + 1)
-            for r = r0 to r1
-                if sgn > 0
-                    array.set(buyR, r, array.get(buyR, r) + share)
-                else if sgn < 0
-                    array.set(sellR, r, array.get(sellR, r) + share)
-                else
-                    array.set(buyR, r, array.get(buyR, r) + share / 2)
-                    array.set(sellR, r, array.get(sellR, r) + share / 2)
+        array<bool>  impB  = array.new<bool>(n, false)
+        array<bool>  impS  = array.new<bool>(n, false)
+        bool realRows = false
+        // @@FOOTPRINT_ROWS_BEGIN
+        if cnt > 0
+            for j = 0 to cnt - 1
+                float v   = nz(array.get(aVol, j))
+                float sgn = nz(array.get(aSigned, j))
+                int   r0  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aLo, j), low) - low) / stp)))
+                int   r1  = math.max(0, math.min(n - 1, math.floor((nz(array.get(aHi, j), high) - low) / stp)))
+                float share = v / (r1 - r0 + 1)
+                for r = r0 to r1
+                    if sgn > 0
+                        array.set(buyR, r, array.get(buyR, r) + share)
+                    else if sgn < 0
+                        array.set(sellR, r, array.get(sellR, r) + share)
+                    else
+                        array.set(buyR, r, array.get(buyR, r) + share / 2)
+                        array.set(sellR, r, array.get(sellR, r) + share / 2)
+        // @@FOOTPRINT_ROWS_END
         float maxCell = math.max(array.max(buyR), array.max(sellR))
         int   pocR = 0
         float pocV = -1.0
@@ -1235,8 +1305,8 @@ f_drawFoot(int n) =>
             float sv   = array.get(sellR, r)
             float top  = low + (r + 1) * stp
             float bot  = low + r * stp
-            bool  bImb = bv > 0 and bv >= imbRatio * sv
-            bool  sImb = sv > 0 and sv >= imbRatio * bv
+            bool  bImb = realRows ? array.get(impB, r) : bv > 0 and bv >= imbRatio * sv
+            bool  sImb = realRows ? array.get(impS, r) : sv > 0 and sv >= imbRatio * bv
             int   tB   = maxCell > 0 ? int(math.round(88 - 58 * bv / maxCell)) : 88
             int   tS   = maxCell > 0 ? int(math.round(88 - 58 * sv / maxCell)) : 88
             color brd  = r == pocR ? cGold : color.new(D_ROW, 35)
@@ -1247,7 +1317,7 @@ f_drawFoot(int n) =>
             color dc = d >= 0 ? cBull : cBear
             array.push(fpLabels, label.new(time, low, "Δ " + (d >= 0 ? "+" : "−") + f_k(math.abs(d)), xloc = xloc.bar_time, yloc = yloc.belowbar, style = label.style_label_up, color = color.new(dc, 78), textcolor = cSilver, size = size.tiny))
 
-if showFoot and useLtf and bar_index > last_bar_index - footBars
+if showFoot and (useLtf or fpOk) and bar_index > last_bar_index - footBars
     f_drawFoot(fpRows)
     while array.size(fpBoxes) > footBars * fpRows * 2
         box.delete(array.shift(fpBoxes))
@@ -1315,25 +1385,22 @@ f_posFx(int side) =>
     fx.b2 := box.new(bar_index, gTop, bar_index + 1, gBot, border_color = color.new(cBull, 40), border_width = 1, bgcolor = color.new(cBull, 87))
     fx
 
+// Live stop: red at the original stop, gold once at entry or trailing behind aggression
+plot(showTrades and tSide != 0 ? tStop : na, "Stop (live)", color = tTrail or tBE ? cGold : cBear, style = plot.style_linebr, linewidth = 2, display = display.pane)
+
 if showTrades and barstate.isconfirmed
     // Close the finished trade first (a new one can open on the same bar)
     if not na(curPos) and tradeClosed
         box.set_right(curPos.b1, bar_index)
         box.set_right(curPos.b2, bar_index)
-        if not na(curPos.l1)
-            line.set_x2(curPos.l1, bar_index)
         if showOutcome
-            string ot = tStatus == "TARGET_HIT" ? "✔ TARGET  " : tStatus == "STOPPED" ? "✕ STOPPED  " : "● BREAKEVEN  "
-            color  oc = tStatus == "TARGET_HIT" ? cBull : tStatus == "STOPPED" ? cBear : cGold
+            string ot = tStatus == "TARGET_HIT" ? "✔ TARGET  " : tStatus == "TRAIL_STOP" ? "✔ TRAILED  " : tStatus == "STOPPED" ? "✕ STOPPED  " : "● BREAKEVEN  "
+            color  oc = tStatus == "TARGET_HIT" or tStatus == "TRAIL_STOP" ? cBull : tStatus == "STOPPED" ? cBear : cGold
             curPos.t1 := label.new(bar_index, exitSide == 1 ? high : low, ot + f_signed(exitR, "0.0") + "R", yloc = exitSide == 1 ? yloc.abovebar : yloc.belowbar, style = exitSide == 1 ? label.style_label_down : label.style_label_up, color = color.new(C_PILL, 10), textcolor = oc, size = size.small)
         curPos := na
     else if not na(curPos) and tSide != 0
         box.set_right(curPos.b1, bar_index + 1)
         box.set_right(curPos.b2, bar_index + 1)
-        if tBE and na(curPos.l1)
-            curPos.l1 := line.new(bar_index, tEntry, bar_index + 1, tEntry, color = color.new(cGold, 10), style = line.style_dashed, width = 1)
-        else if not na(curPos.l1)
-            line.set_x2(curPos.l1, bar_index + 1)
     if openedLong or openedShort
         int sd = openedLong ? 1 : -1
         tradeFx.push(f_entryFx(sd))
@@ -1510,7 +1577,7 @@ plot(tSide, "Trade side (1 long, -1 short, 0 flat)", display = display.data_wind
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 string D_SIZE  = f_size(panelSizeIn)
 string D_TITLE = panelSizeIn == "Tiny" ? size.small : panelSizeIn == "Small" ? size.normal : size.large
-int    D_ROWS  = 46
+int    D_ROWS  = 50
 var table dash = table.new(f_pos(panelPosIn), 3, D_ROWS, bgcolor = color.new(D_ROW, 6), frame_color = color.new(cCyan, 35), frame_width = 1, border_color = color.new(cCyan, 82), border_width = 1)
 
 f_tc(int c, int r, string txt, color tc, color bg, string ha) =>
@@ -1614,7 +1681,8 @@ if showPanel and barstate.islast
         stCol := biasCol
         sub   := zoneReady ? (bias == 1 ? "Wait for a pullback into discount" : "Wait for a rally into premium") : "No valid zone yet"
     if tSide != 0
-        sub := not tReclaimed ? "Get back into value within " + str.tostring(math.max(reclaimBars - (bar_index - tBar), 0)) + " bars" : tBE ? "Risk off · stop at entry" : beAtR > 0 ? "Stop to entry at " + f_signed(beAtR, "0.0") + "R" : "Managing toward target"
+        int barsLeft = math.max(reclaimBars - (bar_index - tBar), 0)
+        sub := tTrail ? (tSide == 1 ? "Trailing behind buyer aggression" : "Trailing behind seller aggression") : tBE ? (trailOn ? "Risk off · trail from " + str.tostring(tTrailTrig, format.mintick) : "Risk off · stop at entry") : not tReclaimed ? "Get back into value within " + str.tostring(barsLeft) + (barsLeft == 1 ? " bar" : " bars") : beAtR > 0 ? "Stop to entry at " + f_signed(beAtR, "0.0") + "R" : "Managing toward target"
     bool solid = tSide != 0
 
     int stage = tSide != 0 ? 6 : armed == 2 ? 5 : armed == 1 ? 4 : inZoneNow ? 3 : zoneReady ? 2 : bias != 0 ? 1 : 0
@@ -1646,6 +1714,8 @@ if showPanel and barstate.islast
 
     if full
         f_head(r, "ORDER FLOW")
+        r += 1
+        f_kv(r, "Data", fpOk ? "Real bid × ask footprint · " + str.tostring(imbRatio * 100, "0") + "% imbalances" : useLtf ? "Estimated from " + f_tfLabel(ltf) + " candles" : "Estimated from chart candles", fpOk ? cGold : cGrey)
         r += 1
         f_meterRow(r, "Flow Pressure", flowShare * 100, f_signed(flowNet * 100, "0") + (flowNet >= 0 ? " buyers" : " sellers"), flowNet >= 0 ? cCyan : cPurple)
         r += 1
@@ -1724,7 +1794,9 @@ if showPanel and barstate.islast
         r += 1
         f_kv(r, "Entry", str.tostring(tEntry, fp), cSilver)
         r += 1
-        f_kv(r, tBE ? "Stop (at entry)" : "Stop", str.tostring(tStop, fp), tBE ? cGold : cBear)
+        f_kv(r, tTrail ? "Stop (trailing)" : tBE ? "Stop (at entry)" : "Stop", str.tostring(tStop, fp), tTrail or tBE ? cGold : cBear)
+        r += 1
+        f_kv(r, "Trail", tTrail ? "On · behind each aggressive candle" : trailOn ? "Starts at " + str.tostring(tTrailTrig, fp) : "Off", tTrail ? cGold : cSilver)
         r += 1
         f_kv(r, "Target · " + f_tgtName(tTargetSrc), str.tostring(tTarget, fp) + "  ·  " + str.tostring(tgtR, "0.0") + "R", cBull)
         r += 1
@@ -1734,4 +1806,4 @@ if showPanel and barstate.islast
         f_kv(r, "Last Trade", f_title(tSideStr) + "  ·  " + f_title(tStatus) + (na(lastExitR) ? "" : "  ·  " + f_signed(lastExitR, "0.0") + "R"), tStatus == "TARGET_HIT" ? cBull : tStatus == "STOPPED" ? cBear : cGold)
         r += 1
 
-    f_span(r, "Order flow estimated from lower-timeframe data · not advice", cGrey, D_HEAD, D_SIZE)
+    f_span(r, fpOk ? "Real volume footprint · not advice" : "Order flow estimated from lower-timeframe data · not advice", cGrey, D_HEAD, D_SIZE)

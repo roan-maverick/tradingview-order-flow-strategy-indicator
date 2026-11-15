@@ -39,7 +39,7 @@ Full example: [`examples/sample_packet.json`](../examples/sample_packet.json)
 | `position` | enum | `DISCOUNT`, `PREMIUM`, `INSIDE_VALUE`, `UNKNOWN` |
 | `long_zone.ready` | bool | Discount zone is valid (outside value, internal swing, not invalidated) |
 | `long_zone.in_zone` | bool | Price is inside 0.705 to 0.886 |
-| `long_zone.top`, `mid`, `bottom` | number or null | 0.705, 0.786 and 0.886 levels |
+| `long_zone.top`, `mid`, `bottom` | number or null | 0.705, 0.788 and 0.886 levels |
 | `long_zone.leg_high`, `leg_low` | number or null | The impulse leg |
 | `long_zone.zone_volume` | enum | `THIN`, `UNTESTED`, `NORMAL`, `UNKNOWN` |
 | `short_zone.*` | | Same fields for the premium zone. `bottom` is 0.705, `top` is 0.886 |
@@ -55,6 +55,8 @@ Full example: [`examples/sample_packet.json`](../examples/sample_packet.json)
 | `participation_ok` | bool | Volume filter passed |
 | `sellers_absorbed`, `buyers_absorbed` | bool | Absorption detected on this candle |
 | `long_state`, `short_state` | enum | `IDLE`, `ABSORPTION`, `FIRST_SHIFT` |
+| `source` | enum | `REAL_FOOTPRINT` (Pro edition with footprint data), `ESTIMATED_LTF`, `ESTIMATED_CHART` |
+| `buyer_imbalance`, `seller_imbalance` | bool | The candle printed at least one real buy / sell imbalance (always false when the source is estimated) |
 
 ## `risk`
 
@@ -68,12 +70,14 @@ Full example: [`examples/sample_packet.json`](../examples/sample_packet.json)
 | Field | Type | Description |
 |---|---|---|
 | `side` | enum | `LONG`, `SHORT`, `NONE` (side of the most recent tracked trade) |
-| `status` | enum | `ACTIVE`, `VALUE_RECLAIMED`, `STOP_AT_ENTRY`, `NO_RECLAIM_STOP_AT_ENTRY`, `TARGET_HIT`, `STOPPED`, `BREAKEVEN`, `NONE` |
+| `status` | enum | `ACTIVE`, `VALUE_RECLAIMED`, `STOP_AT_ENTRY`, `NO_RECLAIM_STOP_AT_ENTRY`, `TRAILING`, `TARGET_HIT`, `TRAIL_STOP`, `STOPPED`, `BREAKEVEN`, `NONE` |
 | `open` | bool | Trade still open |
-| `entry`, `stop`, `target` | number or null | Trade levels (stop updates when moved to entry) |
+| `entry`, `stop`, `target` | number or null | Trade levels (stop updates when it moves to entry or trails) |
 | `target_source` | enum | `POC`, `SWING`, `R`, `NONE` |
 | `risk_per_unit` | number or null | Entry to original stop |
 | `reclaim_level` | number or null | VAL (long) or VAH (short) at entry |
 | `bars_since_entry` | int or null | Bars since the trade opened |
+| `trailing` | bool | The stop is trailing behind aggression |
+| `trail_trigger` | number or null | Price where trailing starts (POC, gamma wall or the start R) |
 
 Breaking changes will use a new schema name. Agents should check `schema` first.

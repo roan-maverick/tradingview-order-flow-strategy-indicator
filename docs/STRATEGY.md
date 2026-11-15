@@ -59,9 +59,9 @@ Use the volume profile. The **value area** is where about 70% of the volume trad
 
 In a value-up market you only buy in discount. Buying in premium is paying an expensive price; selling in discount is selling at the best place to buy. The value area used is the value the market has built most recently (for example during the Asia and London sessions before the New York open), or the last completed session.
 
-### B. The exact zone: Fibonacci 0.705 / 0.786 / 0.886
+### B. The exact zone: Fibonacci 0.705 / 0.788 / 0.886
 
-Draw a Fibonacci retracement over the last impulse leg, from the swing low to the swing high (for shorts: swing high to swing low). The zone between **0.705 and 0.886** (with 0.786 in the middle) is where you want to do business.
+Draw a Fibonacci retracement over the last impulse leg, from the swing low to the swing high (for shorts: swing high to swing low). The zone between **0.705 and 0.886** (with 0.788 in the middle, the level he names; the textbook level is 0.786) is where you want to do business.
 
 Three conditions make the zone valid:
 
@@ -142,13 +142,13 @@ Mirror everything: value down, premium above VAH, Fibonacci from swing high to s
 |---|---|
 | Value structure | Swing highs and lows on two higher timeframes (default 1h and 4h), confirmed bars only |
 | Gamma regime | Settings for regime, call wall, put wall and gamma flip, with an optional "skip positive gamma" filter |
-| Value area | Volume profile built from every candle of the session: developing (default) or prior session |
-| Fibonacci zone | Automatic impulse leg detection, 0.705 / 0.786 / 0.886 zone, outside-value and internal-swing checks, 0.886 invalidation |
+| Value area | Volume profile built from every candle of the session (daily, weekly or cash session only): developing (default) or prior session |
+| Fibonacci zone | Automatic impulse leg detection, 0.705 / 0.788 / 0.886 zone, outside-value and internal-swing checks, 0.886 invalidation |
 | Low-volume nodes | Zone volume compared with the profile: Thin, Untested or Normal |
-| Absorption | Delta and the candle's volume POC estimated from lower-timeframe candles |
-| Second failure | A state machine: absorption, first shift, retest that fails higher, aggressive flip, entry |
+| Absorption | Delta and the candle's volume POC: real footprint in the Pro edition, estimated from lower-timeframe candles in the Standard edition |
+| Second failure | A state machine: absorption, first shift, retest that fails higher, aggressive flip (Pro: with buy imbalances lighting up), entry |
 | Participation | Relative (vs average) or absolute volume filter |
-| Management | Stop beyond the failure, value reclaim checkpoint, stop to entry at 1R or when value is not reclaimed, target at POC, swing or R |
+| Management | Stop beyond the failure, value reclaim checkpoint, stop to entry at 1R or when value is not reclaimed, full target at the last swing, stop trailing behind each aggressive candle once price reaches the POC, the call wall or 1.5R |
 | Risk rules | Trade window, max trades per day, stop after consecutive losses |
 
 See [SPECIFICATION.md](SPECIFICATION.md) for every formula.

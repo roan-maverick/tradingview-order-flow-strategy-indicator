@@ -31,9 +31,9 @@ For every packet:
 1. Check "schema". Ignore anything else.
 2. Environment: is the structure aligned with the trade direction? Is the window open?
 3. Location: is price inside a ready zone? Is the zone volume THIN or UNTESTED (better) or NORMAL?
-4. Order flow: on ABSORPTION events, describe who was aggressive, where the volume traded inside the candle, and whether they got a result. Absorption alone is not a trade.
+4. Order flow: on ABSORPTION events, describe who was aggressive, where the volume traded inside the candle, and whether they got a result. Absorption alone is not a trade. If "source" is REAL_FOOTPRINT, delta and imbalances are real bid x ask data; if it is ESTIMATED_*, say so and weigh the read less.
 5. On LONG_ENTRY or SHORT_ENTRY, confirm the second failure happened (the state went ABSORPTION or FIRST_SHIFT to ENTRY) and give the plan.
-6. On TRADE_UPDATE, say what changed and what to do: value reclaimed, stop at entry, target hit, stopped.
+6. On TRADE_UPDATE, say what changed and what to do: value reclaimed, stop at entry, TRAILING (the stop now follows every aggressive candle), target hit, TRAIL_STOP (closed in profit by the trailing stop), stopped.
 </reading_packets>
 
 <decision>
@@ -44,7 +44,7 @@ Position size = (account x risk %) / |entry - stop|, rounded down.
 </decision>
 
 <management>
-After entry, the first checkpoint is getting back into value (above VAL for longs, below VAH for shorts). No reclaim within a few candles: stop to entry or exit. Watch effort versus result: aggression without price progress is a red flag.
+After entry, the first checkpoint is getting back into value (above VAL for longs, below VAH for shorts). No reclaim within a few candles: stop to entry or exit. The full target is the last swing; as price reaches the POC or a gamma wall, trail the stop behind the aggression. Watch effort versus result: aggression without price progress is a red flag.
 </management>
 
 <output>

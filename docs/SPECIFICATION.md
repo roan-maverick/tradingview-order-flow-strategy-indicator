@@ -1,6 +1,6 @@
 # Order Flow Strategy: Specification
 
-Version 1.0 · Pine Script v6 · Packet schema `order-flow-strategy/v1`
+Version 1.1 · Pine Script v6 · Packet schema `order-flow-strategy/v1`
 
 Every calculation the indicator performs, so a trader or an AI agent can verify each value.
 
@@ -30,13 +30,13 @@ Every calculation the indicator performs, so a trader or an AI agent can verify 
 | Environment | Gamma regime, call wall, put wall, gamma flip | Not set, 0, 0, 0 |
 | Environment | Skip setups in positive gamma | Off |
 | Location | Value area | Developing (current session) |
-| Location | Session length | Daily |
+| Location | Session length | Daily (or Weekly, or Cash session 09:30-16:00 America/New_York) |
 | Location | Value area % | 70 |
 | Location | Profile row height | 0.5 x ATR(14) |
 | Location | Developing value: minimum bars | 12 |
 | Location | Swing strength | 5 bars each side |
 | Location | Impulse leg lookback | 60 bars |
-| Location | Zone levels | 0.705, 0.786, 0.886 |
+| Location | Zone levels | 0.705, 0.788, 0.886 |
 | Location | Zone must sit outside value / require internal swing | On / On |
 | Location | Thin volume threshold | 30% of POC volume |
 | Order flow | Order flow timeframe | Auto |
@@ -47,7 +47,9 @@ Every calculation the indicator performs, so a trader or an AI agent can verify 
 | Participation | Absolute minimum | 20,000 |
 | Stops and targets | Stop beyond | Second failure |
 | Stops and targets | Stop buffer | 0.1 x ATR(14) |
-| Stops and targets | Target | Auto (POC, swing, R) |
+| Stops and targets | Target | Swing (trail near POC / walls) |
+| Stops and targets | Trail the stop behind aggression / start at | On / 1.5R (or the POC or gamma wall if reached first) |
+| Order flow (Pro only) | Footprint row size / flip candle must light up imbalances | Auto / On |
 | Stops and targets | Minimum reward / fixed R | 1.5R / 2.0R |
 | Stops and targets | Bars to get back into value | 6 |
 | Stops and targets | Move stop to entry at | 1.0R |
@@ -130,7 +132,7 @@ Position: `DISCOUNT` if close < VAL, `PREMIUM` if close > VAH, otherwise `INSIDE
 | Level | Long (discount) | Short (premium) |
 |---|---|---|
 | 0.705 | high - 0.705 x range | low + 0.705 x range |
-| 0.786 | high - 0.786 x range | low + 0.786 x range |
+| 0.788 | high - 0.788 x range | low + 0.788 x range |
 | 0.886 | high - 0.886 x range | low + 0.886 x range |
 
 | Rule | Long | Short |
@@ -196,6 +198,20 @@ Inside the window, fewer than the max trades today, loss streak below the limit,
 | Absolute | volume >= 20,000 |
 | Off | always |
 
+### Pro edition: real volume footprint
+
+The Pro file replaces the estimate with `request.footprint(row ticks, 70, imbalance ratio x 100)` (TradingView Premium or Ultimate).
+
+| Value | Source |
+|---|---|
+| Delta, volume | `footprint.delta()`, `footprint.total_volume()` |
+| Volume POC | middle of `footprint.poc()` |
+| Imbalances | `volume_row.has_buy_imbalance()` / `has_sell_imbalance()`: a row's buy volume against the sell volume of the row below it (diagonal), at 400% |
+| Flip candle | buyers' flip must include at least one buy imbalance (sellers': a sell imbalance) |
+| Row size (auto) | NQ / MNQ 4 ticks, ES / MES 1, YM / MYM 5, other futures 2, BTC about $10, ETH about $1, other crypto 10 ticks, everything else 2 |
+
+Bars where TradingView has no footprint data fall back to the estimate.
+
 ### Footprint (display)
 
 For each of the last 12 candles (when a lower timeframe is available), the candle range is split into 6 equal price rows, drawn on the candle itself (sellers in the left half, buyers in the right half). Each lower-timeframe candle's volume is spread evenly across the rows between its low and high and counted as buying (up candle), selling (down candle) or half and half (unchanged).
@@ -204,7 +220,7 @@ For each of the last 12 candles (when a lower timeframe is available), the candl
 |---|---|
 | Left cell | Selling volume in the row, red, opacity scaled to the largest cell of the candle |
 | Right cell | Buying volume in the row, green, opacity scaled the same way |
-| Imbalance | One side at least 4x the other in the same row: bright magenta (sellers) or cyan (buyers) |
+| Imbalance | Standard: one side at least 4x the other in the same row. Pro: TradingView's diagonal imbalance flags. Bright magenta (sellers) or cyan (buyers) |
 | POC outline | Gold border on the row with the most total volume |
 | Delta label | Buying minus selling volume of the candle |
 
@@ -240,7 +256,8 @@ These values are shown on the chart and the dashboard. They never change a signa
 
 | Mode | Target |
 |---|---|
-| Auto (default) | The nearer of the POC and the last swing extreme (long leg high / short leg low) that is at least 1.5R away. If neither qualifies: 1.5R |
+| Swing, trail near POC / walls (default) | The last swing extreme (long leg high / short leg low) if at least 1.5R away, otherwise the POC if at least 1.5R away, otherwise 1.5R. Trailing does the rest |
+| Auto | The nearer of the POC and the last swing extreme that is at least 1.5R away. If neither qualifies: 1.5R |
 | Value area POC | The POC if at least 1.5R away, otherwise 1.5R |
 | Last swing | The swing extreme if at least 1.5R away, otherwise 1.5R |
 | Fixed R | 2.0R |
@@ -255,11 +272,20 @@ The stop is checked first (conservative when a bar touches both).
 | `VALUE_RECLAIMED` | a close back inside value (above VAL for longs, below VAH for shorts) |
 | `STOP_AT_ENTRY` | price reached +1R, stop moved to entry |
 | `NO_RECLAIM_STOP_AT_ENTRY` | value not reclaimed within 6 bars, stop moved to entry |
+| `TRAILING` | trailing started, or the stop moved up behind an aggressive candle |
+| `TRAIL_STOP` | the trailing stop was touched beyond entry, trade closed in profit, loss streak reset |
 | `TARGET_HIT` | target touched, trade closed |
 | `STOPPED` | stop touched before it was moved, trade closed, loss streak + 1 |
 | `BREAKEVEN` | stop touched after it was moved to entry, trade closed |
 
-A target hit resets the loss streak. The tracker is a reference: it ignores fees, slippage, partial exits and trailing beyond breakeven.
+A target hit or a trailing-stop exit resets the loss streak. Moving the stop to entry never loosens a stop that is already trailing beyond entry. The tracker is a reference: it ignores fees, slippage and partial exits.
+
+### Trailing
+
+| Rule | Long | Short |
+|---|---|---|
+| Trigger | the first of: the POC or the call wall (only if between entry and target), entry + 1.5R, never later than 75% of the way to the target | mirror with the put wall |
+| Trail | on every closed candle with a bullish close and delta ≥ +10% (aggression with a result), stop = max(stop, candle low - 0.1 x ATR) | bearish close and delta ≤ -10%, stop = min(stop, candle high + 0.1 x ATR) |
 
 ---
 
@@ -277,7 +303,7 @@ A target hit resets the loss streak. The tracker is a reference: it ignores fees
 
 ## 8. Known limitations
 
-- Delta and the candle POC are estimates from lower-timeframe candles, not true bid/ask footprint data. 400% bid/ask imbalances cannot be measured in Pine Script, so the dominance shift uses net delta instead.
+- Standard edition: delta and the candle POC are estimates from lower-timeframe candles. The Pro edition reads real footprint data but needs a Premium or Ultimate plan, and TradingView does not have footprint data for every bar or symbol.
 - Gamma exposure is not available in TradingView and must be entered manually.
 - News is not detected. Avoid setups right before scheduled releases.
 - Symbols without volume data cannot produce order flow signals. Set the volume filter to Off and expect no absorption signals.
