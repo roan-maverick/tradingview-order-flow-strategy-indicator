@@ -1,0 +1,52 @@
+{
+  "schema": "order-flow-strategy/v1",
+  "event": "LONG_ENTRY",
+  "symbol": "CME_MINI:MNQ1!",
+  "timeframe": "5",
+  "time": "2026-11-13T14:55:00Z",
+  "price": {"open": 21446.0, "high": 21461.25, "low": 21441.5, "close": 21458.75, "volume": 28410},
+  "environment": {
+    "window_open": true,
+    "structure": "VALUE_UP",
+    "htf1": "60",
+    "htf1_structure": 1,
+    "htf2": "240",
+    "htf2_structure": 1,
+    "gamma_regime": "NEGATIVE",
+    "call_wall": 21700.0,
+    "put_wall": 21300.0,
+    "gamma_flip": 21450.0
+  },
+  "location": {
+    "value_area_high": 21560.0,
+    "poc": 21522.0,
+    "value_area_low": 21480.0,
+    "position": "DISCOUNT",
+    "long_zone": {"ready": true, "in_zone": true, "top": 21467.25, "mid": 21447.5, "bottom": 21423.0, "leg_high": 21640.0, "leg_low": 21395.0, "zone_volume": "THIN"},
+    "short_zone": {"ready": false, "in_zone": false, "bottom": null, "mid": null, "top": null, "leg_low": null, "leg_high": null, "zone_volume": "UNKNOWN"}
+  },
+  "order_flow": {
+    "delta_pct": 28.4,
+    "volume_poc_position_pct": 41.0,
+    "close_position_pct": 86.1,
+    "relative_volume": 1.42,
+    "participation_ok": true,
+    "sellers_absorbed": false,
+    "buyers_absorbed": false,
+    "long_state": "IDLE",
+    "short_state": "IDLE"
+  },
+  "risk": {"trades_today": 1, "max_trades": 2, "loss_streak": 0, "max_loss_streak": 2},
+  "trade": {
+    "side": "LONG",
+    "status": "ACTIVE",
+    "open": true,
+    "entry": 21458.75,
+    "stop": 21440.25,
+    "target": 21522.0,
+    "target_source": "POC",
+    "risk_per_unit": 18.5,
+    "reclaim_level": 21480.0,
+    "bars_since_entry": 0
+  }
+}
