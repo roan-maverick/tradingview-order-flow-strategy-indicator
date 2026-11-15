@@ -52,9 +52,9 @@ The indicator works on the free TradingView plan. Only the webhook alerts for AI
 ### Live: Step 3, Confirmation
 
 5. **Wait for price to reach the zone.** The panel switches to *IN DISCOUNT*.
-6. **Absorption.** A cyan **ABS** diamond marks a candle where sellers were aggressive, the volume traded at the low, and price closed away from the low. The panel shows *LONG · ABSORPTION*.
-7. **First shift.** A candle closes bullish. The panel shows *LONG · ARMED*: waiting for sellers to fail again.
-8. **Second failure and entry.** Price pulls back, sellers fail above their first failure, and a candle closes bullish with aggressive buying. **▲ LONG** appears with a risk box and a reward box. Hover the label to see the absorption level, the second failure and the target.
+6. **Absorption.** A cyan **ABS** diamond marks a candle where sellers were aggressive, the volume traded at the low, and price closed away from the low. On the footprint you see heavy red cells at the bottom of the candle with the gold POC outline down there. The panel shows *ABSORPTION*.
+7. **First shift.** A candle closes bullish. The panel shows *LONG ARMED*: waiting for sellers to fail again.
+8. **Second failure and entry.** Price pulls back, sellers fail above their first failure, and a candle closes bullish with aggressive buying (teal imbalance cells light up on the footprint). **▲ LONG** appears with a magenta **TRAPPED SELLERS** zone, a risk box and a reward box. Hover the label to see the absorption level, the second failure and the target.
 
 ### Live: Step 4, Management
 
@@ -71,13 +71,17 @@ Shorts work exactly the same in reverse.
 
 | Element | Meaning |
 |---|---|
-| **Strategy panel** | The current state (*VALUE UP*, *IN DISCOUNT*, *LONG · ARMED*, *LONG ACTIVE*...), what it is waiting for next, and a row for each of the four steps |
-| **Blue band + gold line** | Value area and point of control, with VAH, POC and VAL tags |
-| **Green or red zone box** | Discount or premium zone, 0.705 to 0.886, with a dotted 0.786 line |
-| **ABS diamonds** | Absorption: cyan under the candle (sellers absorbed), gold above it (buyers absorbed) |
+| **Footprint cells** | The most recent candles are split into price rows: **sellers on the left, buyers on the right**, shaded by how much volume traded there. Bright red or teal cells are **imbalances** (one side 4x the other, the 400% rule). The **gold outline** is the candle's own point of control. Zoom in to read the numbers |
+| **Delta under each candle** | Net aggression of the candle: `+1.2K` buyers in control, `−860` sellers in control |
+| **Strategy panel** | A big state banner (*VALUE UP*, *IN DISCOUNT*, *ABSORPTION*, *LONG ARMED*, *LONG ACTIVE*...), what it is waiting for next, a four-step checklist with green / amber / grey lights, the last candle's order flow and the open trade |
+| **Indigo gradient band + glowing gold line** | Value area and point of control, with VAH, POC and VAL tags |
+| **Green or red zone box** | Discount or premium zone with 0.705, 0.786 and 0.886 tags. ✕ marks the invalidation level |
+| **ABS diamonds** | Absorption: cyan below the candle (sellers absorbed), amber above it (buyers absorbed) |
+| **Magenta TRAPPED zone** | Drawn at every entry: the price band where the absorbed side got trapped. Their forced exits are the fuel for the move |
 | **▲ LONG / ▼ SHORT** | Entries, with a tooltip explaining the trade |
 | **Risk and reward boxes** | Entry to stop in red, entry to target in green. A dashed gold line appears when the stop moves to entry |
 | **ENTRY / STOP / TARGET tags** | Live levels of the open trade |
+| **Cyan tint** | The active trade window (first 90 minutes of the New York open by default) |
 | **Gamma lines** | Call wall, put wall and gamma flip, when you enter them |
 
 ---
@@ -98,6 +102,9 @@ Shorts work exactly the same in reverse.
 | Volume filter | 1.0x average | Or an absolute number, for example 20,000 for MNQ 5-minute |
 | Target | Auto (POC, swing, R) | Or POC only, swing only, or a fixed R |
 | Minimum reward | 1.5R | Targets closer than this are replaced by 1.5R |
+| Footprint candles / rows | 12 / 6 | How many recent candles get footprint cells, and how many price rows each |
+| Imbalance ratio | 4 (400%) | When a footprint cell lights up |
+| Color candles by delta | Off | Green or red candles shaded by net aggression |
 
 Every formula is in **[docs/SPECIFICATION.md](docs/SPECIFICATION.md)**.
 
@@ -157,7 +164,10 @@ Packet fields: **[docs/PACKET_SCHEMA.md](docs/PACKET_SCHEMA.md)** · Agent promp
 No. Setups, entries and trade tracking use closed candles only. Higher-timeframe structure uses only closed higher-timeframe bars, and swing points never move once confirmed.
 
 **Is this real order flow?**
-It is the closest Pine Script allows. TradingView does not give scripts tick-level bid and ask data, so delta and the volume point of control inside each candle are estimated from lower-timeframe candles. Footprint-style 400% imbalances cannot be measured; the dominance shift uses net delta instead.
+It is the closest Pine Script allows. TradingView does not give scripts tick-level bid and ask data, so the footprint, delta and the volume point of control inside each candle are estimated from lower-timeframe candles: volume on up candles counts as buying, volume on down candles as selling, spread across the price rows each one traded through. Imbalances compare buyers and sellers in the same row. It reads the same story as an exchange footprint, at lower resolution.
+
+**I can't see the footprint numbers.**
+Zoom in on the last candles. The cells are drawn inside each candle's width, so the numbers appear once the candles are wide enough. The footprint needs a chart timeframe above 1 minute (it reads 1-minute candles inside a 5-minute chart).
 
 **Which markets?**
 Any symbol with volume data: index futures (MNQ, NQ, ES), crypto, stocks. Forex feeds without real volume will not produce order flow signals.

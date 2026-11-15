@@ -183,6 +183,18 @@ Inside the window, fewer than the max trades today, loss streak below the limit,
 | Absolute | volume >= 20,000 |
 | Off | always |
 
+### Footprint (display)
+
+For each of the last 12 candles (when a lower timeframe is available), the candle range is split into 6 equal price rows. Each lower-timeframe candle's volume is spread evenly across the rows between its low and high and counted as buying (up candle), selling (down candle) or half and half (unchanged).
+
+| Element | Rule |
+|---|---|
+| Left cell | Selling volume in the row, red, opacity scaled to the largest cell of the candle |
+| Right cell | Buying volume in the row, green, opacity scaled the same way |
+| Imbalance | One side at least 4x the other in the same row: bright red (sellers) or teal (buyers) |
+| POC outline | Gold border on the row with the most total volume |
+| Delta label | Buying minus selling volume of the candle |
+
 ---
 
 ## 6. Trade management
@@ -228,7 +240,7 @@ A target hit resets the loss streak. The tracker is a reference: it ignores fees
 | JSON packet | `alert()` on bar close. Schema: [PACKET_SCHEMA.md](PACKET_SCHEMA.md) |
 | Alert conditions | "OFS: LONG entry", "OFS: SHORT entry", "OFS: Absorption" |
 | Strategy panel | Current state and what it is waiting for, then each of the four steps |
-| Chart | Value area band with POC, discount or premium zone, ABS markers, LONG / SHORT labels with a tooltip, risk and reward boxes, gamma levels |
+| Chart | Footprint cells and delta on recent candles, value area gradient band with POC, discount or premium zone with Fibonacci tags, ABS markers, trapped traders zones, LONG / SHORT labels with a tooltip, risk and reward boxes, trade window tint, gamma levels |
 | Data Window | Structure, delta %, volume POC position, relative volume, long and short setup states, trade side |
 
 ---
