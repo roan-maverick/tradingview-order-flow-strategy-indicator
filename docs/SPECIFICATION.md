@@ -282,7 +282,6 @@ A target hit or a trailing-stop exit resets the loss streak. Moving the stop to 
 | Alert conditions | "OFS: LONG entry", "OFS: SHORT entry", "OFS: Absorption", "OFS: Trade closed" |
 | Dashboard | Setup state and next step, order flow meters, 4-step process lights, multi-timeframe structure, key levels, active trade |
 | Chart | Order flow pressure wave, liquidity zones and sweeps, inefficiency corridors, impulse candles, footprint and delta tags on recent candles, glowing value area with POC, discount or premium zone with Fibonacci tags and leg anchor, absorption circles, first shift squares, entry outlines and momentum trails, trapped traders zones, risk and reward boxes, outcome tags, target fields, trade window tint, gamma levels |
-| Data Window | Structure, delta %, volume POC position, relative volume, long and short setup states, trade side |
 
 ---
 

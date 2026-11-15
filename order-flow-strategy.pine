@@ -988,8 +988,7 @@ color flowCol   = flowState >= 0 ? cCyan : cPurple
 
 plot(showWave and glowOn ? wMid + wUpAmp * 0.55 : na, "Buyers wave · glow", color = color.new(cCyan, 82), linewidth = 6, display = display.pane)
 plot(showWave and glowOn ? wMid - wDnAmp * 0.55 : na, "Sellers wave · glow", color = color.new(cPurple, 82), linewidth = 6, display = display.pane)
-plot(showWave and glowOn ? wMid : na, "Flow core · glow", color = color.new(flowCol, 85), linewidth = 5, display = display.pane)
-plWM  = plot(showWave ? wMid : na, "Flow core", color = color.new(flowCol, 25), linewidth = 1, display = display.pane)
+plWM  = plot(showWave ? wMid : na, "Flow core", color = color.new(flowCol, 15), linewidth = 2, display = display.pane)
 plWUO = plot(showWave ? wMid + wUpAmp : na, "Buyers wave · outer", color = color.new(cCyan, 55), linewidth = 1, display = display.pane)
 plWUI = plot(showWave ? wMid + wUpAmp * 0.55 : na, "Buyers wave · inner", color = color.new(cCyan, 10), linewidth = 2, display = display.pane)
 plWDO = plot(showWave ? wMid - wDnAmp : na, "Sellers wave · outer", color = color.new(cPurple, 55), linewidth = 1, display = display.pane)
@@ -1005,11 +1004,9 @@ fill(plWDI, plWDO, color = color.new(cPurple, 94), title = "Sellers wave · oute
 bgcolor(showWindowBg and windowMode != MODE_ALL and inWindow ? color.new(cCyan, 95) : na, title = "Trade window")
 
 // Glow first, crisp lines on top
-plot(showVA and glowOn ? vaHigh : na, "Value area high · glow", color = color.new(cValue, 80), style = plot.style_linebr, linewidth = 6, display = display.pane)
-plot(showVA and glowOn ? vaLow : na, "Value area low · glow", color = color.new(cValue, 80), style = plot.style_linebr, linewidth = 6, display = display.pane)
 plot(showVA and glowOn ? vaPOC : na, "Point of control · glow", color = color.new(cGold, 78), style = plot.style_linebr, linewidth = 8, display = display.pane)
-plVAH = plot(showVA ? vaHigh : na, "Value area high", color = color.new(cValue, 5), style = plot.style_linebr, linewidth = 1, display = display.pane)
-plVAL = plot(showVA ? vaLow : na, "Value area low", color = color.new(cValue, 5), style = plot.style_linebr, linewidth = 1, display = display.pane)
+plVAH = plot(showVA ? vaHigh : na, "Value area high", color = color.new(cValue, 0), style = plot.style_linebr, linewidth = 2, display = display.pane)
+plVAL = plot(showVA ? vaLow : na, "Value area low", color = color.new(cValue, 0), style = plot.style_linebr, linewidth = 2, display = display.pane)
 plPOC = plot(showVA ? vaPOC : na, "Point of control", color = color.new(cGold, 0), style = plot.style_linebr, linewidth = 2, display = display.pane)
 // Value glows strongest around the point of control
 fill(plVAH, plPOC, vaHigh, vaPOC, color.new(cValue, 95), color.new(cValue, 82), title = "Value area · upper")
@@ -1022,9 +1019,6 @@ barcolor(colorEvents and not na(eventCol) ? eventCol : colorByDelta ? deltaCol :
 plotshape(showShift and lShiftMark, "First shift · long", shape.square, location.belowbar, color.new(cCyan, 0), size = size.tiny, display = display.pane)
 plotshape(showShift and sShiftMark, "First shift · short", shape.square, location.abovebar, color.new(cMagenta, 0), size = size.tiny, display = display.pane)
 
-plot(showGex and callWall > 0 ? callWall : na, "Call wall", color = color.new(cBull, 25), style = plot.style_linebr, linewidth = 1, display = display.pane)
-plot(showGex and putWall > 0 ? putWall : na, "Put wall", color = color.new(cBear, 25), style = plot.style_linebr, linewidth = 1, display = display.pane)
-plot(showGex and gammaFlip > 0 ? gammaFlip : na, "Gamma flip", color = color.new(cMagenta, 25), style = plot.style_circles, linewidth = 1, display = display.pane)
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 //  VISUALS · 05 ABSORPTION DETECTOR (circular footprints, confirmed bars only)
@@ -1464,12 +1458,16 @@ if barstate.islast
         f_tag(bar_index + 17, vaHigh, "VAH  " + str.tostring(vaHigh, fp), cValue)
         f_tag(bar_index + 17, vaPOC, "POC  " + str.tostring(vaPOC, fp), cGold)
         f_tag(bar_index + 17, vaLow, "VAL  " + str.tostring(vaLow, fp), cValue)
+    // Gamma levels are fixed inputs: drawn as lines across the chart (lines do not use plot slots)
     if showGex
         if callWall > 0
+            array.push(lbLines, line.new(bar_index - 1, callWall, bar_index, callWall, extend = extend.both, color = color.new(cBull, 25), style = line.style_solid, width = 1))
             f_tag(bar_index + 17, callWall, "CALL WALL  " + str.tostring(callWall, fp), cBull)
         if putWall > 0
+            array.push(lbLines, line.new(bar_index - 1, putWall, bar_index, putWall, extend = extend.both, color = color.new(cBear, 25), style = line.style_solid, width = 1))
             f_tag(bar_index + 17, putWall, "PUT WALL  " + str.tostring(putWall, fp), cBear)
         if gammaFlip > 0
+            array.push(lbLines, line.new(bar_index - 1, gammaFlip, bar_index, gammaFlip, extend = extend.both, color = color.new(cMagenta, 25), style = line.style_dotted, width = 2))
             f_tag(bar_index + 17, gammaFlip, "γ FLIP  " + str.tostring(gammaFlip, fp), cMagenta)
 
     if tSide != 0
@@ -1541,14 +1539,6 @@ if barstate.islast
                 if showTargets
                     f_field(px, bias == 1 ? cCyan : cMagenta, "T" + str.tostring(rank) + (bias == 1 ? " ▲ " : " ▼ ") + nm + "\n" + (bias == 1 ? "+" : "−") + str.tostring(bd, fp) + " · " + str.tostring(bd / atrV, "0.0") + " ATR", rank == 1)
 
-// Data Window values for agents and exports
-plot(bias, "Structure (1 value up, -1 value down, 0 balance)", display = display.data_window)
-plot(deltaPct, "Delta %", display = display.data_window)
-plot(pocPos, "Volume POC position in candle %", display = display.data_window)
-plot(relVol, "Relative volume", display = display.data_window)
-plot(lState, "Long setup state (0 idle, 1 absorption, 2 first shift)", display = display.data_window)
-plot(sState, "Short setup state (0 idle, 1 absorption, 2 first shift)", display = display.data_window)
-plot(tSide, "Trade side (1 long, -1 short, 0 flat)", display = display.data_window)
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 //  11 · STRATEGY DASHBOARD
